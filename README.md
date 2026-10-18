@@ -23,6 +23,16 @@ Continúa las ideas probadas en [gta-sa-hud-mod](https://github.com/PulpoScript/
 
 Necesitas Visual Studio con el compilador **MSVC v143** y [plugin-sdk](https://github.com/DK22Pac/plugin-sdk) compilado (`Plugin_SA`, Release), con las variables de entorno `PLUGIN_SDK_DIR` y `GTA_SA_DIR`.
 
+1. Abre `ImmersivedHud.sln`.
+2. Configuración **Release | Win32** → **Compilar → Compilar solución**.
+3. El resultado, `bin\Release\ImmersivedHUD.asi`, se copia solo a `GTA_SA_DIR`. Si el juego está abierto, la copia falla: ciérralo y vuelve a compilar.
+
+## Controles (versión actual)
+
+| Tecla | Acción |
+|---|---|
+| F11 | Enciende / apaga el plugin (de momento solo muestra un mensaje) |
+
 ## Compatibilidad
 
 - [Widescreen Fix](https://github.com/ThirteenAG/WidescreenFixesPack) (ThirteenAG) también modifica la posición del icono de arma y la munición. Este plugin tendrá que convivir con él.
