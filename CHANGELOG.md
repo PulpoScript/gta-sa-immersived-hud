@@ -4,11 +4,18 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). A
 
 ## [Sin publicar]
 
+### 0.1.0-dev.12 — Barras un 10 % más pequeñas (sin probar)
+
+- Blindaje 62 × 9 → 56 × 8; salud 109 × 9 → 98 × 8 (a salud máxima). El borde derecho sigue alineado con hora y dinero.
+- Se busca el valor dentro de `RenderArmorBar` (`0x58A160`) y `RenderHealthBar` (`0x589270`) y solo se redirige si aparece una vez. F10 indica el resultado.
+
 ### 0.1.0-dev.11 — Volcado de DrawBarChart (sin probar)
 
 - F10 añade un volcado en hexadecimal de `0x728640`–`0x728A40` para localizar el grosor del borde de las barras.
 
-### 0.1.0-dev.10 — Contorno más fino en la hora y el dinero (probado en parte)
+### 0.1.0-dev.10 — Contorno más fino en la hora y el dinero (probado)
+
+- ✅ Contorno 1 en hora y dinero: se ve bien.
 
 - ✅ Al desactivar, todos los punteros y el contorno vuelven a su valor de fábrica.
 - ✅ `push 2; call CFont::SetEdge` aparece una sola vez en la hora (`0x58EB70`) y en el dinero (`0x58F58D`).

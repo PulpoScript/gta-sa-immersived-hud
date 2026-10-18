@@ -1,6 +1,6 @@
 // #####################################################################
 //  Immersived HUD — plugin ASI para GTA San Andreas PC 1.0 US
-//  Versión: 0.1.0-dev.11 — volcado de DrawBarChart para el borde de las barras
+//  Versión: 0.1.0-dev.12 — barras un 10 % más pequeñas
 //  Requiere: plugin-sdk (Plugin_SA) y un cargador de ASI.
 //  Repositorio: https://github.com/PulpoScript/gta-sa-immersived-hud
 // #####################################################################
@@ -35,7 +35,7 @@ using namespace plugin;
 // =====================================================================
 //  CONFIGURACIÓN
 // =====================================================================
-static const char* VERSION = "0.1.0-dev.11";
+static const char* VERSION = "0.1.0-dev.12";
 static const int   TECLA_ACTIVAR = VK_F11;
 static const int   TECLA_DIAGNOSTICO = VK_F10;
 
@@ -253,14 +253,82 @@ static void QuitarContornos() {
     }
 }
 
+// =====================================================================
+//  TAMAÑO DE LAS BARRAS
+//  gta-reversed (Hud.cpp): RenderArmorBar (0x58A160) usa 62 × 9 y
+//  RenderHealthBar (0x589270) usa 109 × 9. La dirección exacta no está
+//  verificada: se busca dentro de cada función una instrucción fmul/fld
+//  que lea ese valor y solo se redirige si aparece una única vez.
+// =====================================================================
+struct Tamano {
+    const char* nombre;
+    unsigned int inicio;     // rango del código donde buscar
+    unsigned int fin;
+    float fabrica;           // valor que debe leer la instrucción
+    int encontrados;         // resultado de la última búsqueda
+    Coordenada c;            // dirección y puntero se rellenan al encontrarla
+};
+
+static Tamano TAMANOS[] = {
+    { "blindaje largo", 0x58A160, 0x58A230,  62.0f, 0, { 0, 0, 56.0f, false } },
+    { "blindaje alto",  0x58A160, 0x58A230,   9.0f, 0, { 0, 0,  8.0f, false } },
+    { "salud largo",    0x589270, 0x5893B0, 109.0f, 0, { 0, 0, 98.0f, false } },
+    { "salud alto",     0x589270, 0x5893B0,   9.0f, 0, { 0, 0,  8.0f, false } },
+};
+
+// Busca "fmul [mem]" (D8 0D) o "fld [mem]" (D9 05) cuyo float valga 'valor'.
+static void BuscarTamano(Tamano& t) {
+    t.encontrados = 0;
+    if (!SePuedeLeer(t.inicio, t.fin - t.inicio + 6)) return;
+    for (unsigned int dir = t.inicio; dir < t.fin; dir++) {
+        const unsigned char* b = reinterpret_cast<const unsigned char*>(dir);
+        bool esFloat = (b[0] == 0xD8 && b[1] == 0x0D) || (b[0] == 0xD9 && b[1] == 0x05);
+        if (!esFloat) continue;
+        unsigned int puntero = *reinterpret_cast<const unsigned int*>(dir + 2);
+        if (!SePuedeLeer(puntero, 4)) continue;
+        if (*reinterpret_cast<const float*>(puntero) != t.fabrica) continue;
+        t.encontrados++;
+        t.c.direccion = dir + 2;
+        t.c.original = puntero;
+    }
+}
+
+// Devuelve la coordenada del montaje que usa esa dirección.
+static Coordenada* BuscarEnMontaje(unsigned int direccion) {
+    for (Coordenada& c : MONTAJE) if (c.direccion == direccion) return &c;
+    return NULL;
+}
+
+// Margen derecho del grupo: el borde derecho de las barras queda aquí.
+static const float BORDE_DERECHO = 57.0f;
+
+static void AplicarTamanos() {
+    for (Tamano& t : TAMANOS) {
+        if (t.c.redirigida) continue;
+        BuscarTamano(t);
+        if (t.encontrados == 1) Redirigir(t.c);
+    }
+    // ---- La X de cada barra es su borde izquierdo: se ajusta al largo real ----
+    Coordenada* blindajeX = BuscarEnMontaje(0x58EF59);
+    Coordenada* saludX = BuscarEnMontaje(0x58EE87);
+    if (blindajeX) blindajeX->valor = BORDE_DERECHO + (TAMANOS[0].c.redirigida ? TAMANOS[0].c.valor : 62.0f);
+    if (saludX)    saludX->valor    = BORDE_DERECHO + (TAMANOS[2].c.redirigida ? TAMANOS[2].c.valor : 109.0f);
+}
+
+static void QuitarTamanos() {
+    for (Tamano& t : TAMANOS) Restaurar(t.c);
+}
+
 static void AplicarMontaje() {
     for (Coordenada& c : MONTAJE) Redirigir(c);
     AplicarContornos();
+    AplicarTamanos();
 }
 
 static void QuitarMontaje() {
     for (Coordenada& c : MONTAJE) Restaurar(c);
     QuitarContornos();
+    QuitarTamanos();
 }
 
 // =====================================================================
@@ -335,6 +403,19 @@ static bool EscribirDiagnostico() {
             float valor = *reinterpret_cast<const float*>(puntero);
             fprintf(f, "0x%06X  %s -> 0x%08X = %.6f\n", dir + 2, nombre, puntero, valor);
         }
+    }
+
+    // ---- Tamaño de las barras ----
+    fprintf(f, "\nTamano de las barras\n\n");
+    for (Tamano& t : TAMANOS) {
+        if (t.c.redirigida) {
+            fprintf(f, "%-15s cambiado a %.1f en 0x%06X (fabrica %.1f)\n", t.nombre, t.c.valor, t.c.direccion, t.fabrica);
+            continue;
+        }
+        BuscarTamano(t);
+        fprintf(f, "%-15s encontrados: %d", t.nombre, t.encontrados);
+        if (t.encontrados == 1) fprintf(f, "  en 0x%06X", t.c.direccion);
+        fprintf(f, "\n");
     }
 
     // ---- Contorno de la hora y el dinero ----
