@@ -1,6 +1,6 @@
 // #####################################################################
 //  Immersived HUD — plugin ASI para GTA San Andreas PC 1.0 US
-//  Versión: 0.1.0-dev.9 — dinero más pequeño y grupo más compacto
+//  Versión: 0.1.0-dev.10 — contorno más fino en la hora y el dinero
 //  Requiere: plugin-sdk (Plugin_SA) y un cargador de ASI.
 //  Repositorio: https://github.com/PulpoScript/gta-sa-immersived-hud
 // #####################################################################
@@ -14,7 +14,8 @@
 //    F10  Escribe ImmersivedHud.log junto a gta_sa.exe con lo que hay en
 //         las direcciones candidatas a posición del HUD y una búsqueda de
 //         instrucciones de float en el código de la hora, el icono, la
-//         munición, las estrellas, el dinero y las barras (solo lectura).
+//         munición, las estrellas, el dinero, las barras y DrawBarChart,
+//         y dónde está el contorno de la hora y el dinero (solo lectura).
 //
 //  TÉCNICA (la de WidescreenFix)
 //    Cada coordenada se lee con una instrucción "fmul [puntero]". No se
@@ -33,7 +34,7 @@ using namespace plugin;
 // =====================================================================
 //  CONFIGURACIÓN
 // =====================================================================
-static const char* VERSION = "0.1.0-dev.9";
+static const char* VERSION = "0.1.0-dev.10";
 static const int   TECLA_ACTIVAR = VK_F11;
 static const int   TECLA_DIAGNOSTICO = VK_F10;
 
@@ -90,6 +91,7 @@ static const Rango BUSQUEDAS[] = {
     { "dinero",            0x58F500, 0x58F620 },  // alrededor de las escalas del dinero
     { "salud y blindaje",  0x58EE00, 0x58F000 },  // alrededor de las escalas de las barras
     { "dibujo del icono",  0x58D840, 0x58D980 },  // alrededor de las escalas del dibujo del icono
+    { "DrawBarChart",      0x728640, 0x728900 },  // CSprite2d::DrawBarChart: borde negro de las barras
 };
 
 // =====================================================================
@@ -178,12 +180,82 @@ static Coordenada MONTAJE[] = {
     { 0x58DFB3, 0x00866C5C,  72.0f, false },  // otra pasada con la misma Y
 };
 
+// =====================================================================
+//  CONTORNO DE LA HORA Y EL DINERO
+//  Ambos llaman a CFont::SetEdge(2) (gta-reversed, Hud.cpp). El valor
+//  es un entero, así que lo más fino sin quitarlo es 1.
+//  Se busca el patrón "push 2; call CFont::SetEdge" dentro del código de
+//  cada elemento y solo se cambia el byte del 2 si aparece una única vez.
+// =====================================================================
+static const unsigned int FUNCION_SET_EDGE = 0x719590;  // CFont::SetEdge (plugin-sdk)
+static const unsigned char CONTORNO_FABRICA = 2;
+static const unsigned char CONTORNO_PROPIO  = 1;
+
+struct Contorno {
+    const char* nombre;
+    unsigned int inicio;     // rango del código donde buscar
+    unsigned int fin;
+    unsigned int byteValor;  // dirección del 2 encontrada (0 = sin buscar o no válida)
+    bool cambiado;
+};
+
+static Contorno CONTORNOS[] = {
+    { "hora",   0x58EA80, 0x58EC80, 0, false },
+    { "dinero", 0x58F500, 0x58F6A0, 0, false },
+};
+
+// Cuenta las apariciones de "6A 02 E8 <rel32 a SetEdge>" en el rango y
+// devuelve la dirección del byte del valor si hay exactamente una.
+static unsigned int BuscarSetEdge(const Contorno& c, int* encontrados) {
+    *encontrados = 0;
+    unsigned int resultado = 0;
+    if (!SePuedeLeer(c.inicio, c.fin - c.inicio + 7)) return 0;
+    for (unsigned int dir = c.inicio; dir < c.fin; dir++) {
+        const unsigned char* b = reinterpret_cast<const unsigned char*>(dir);
+        if (b[0] != 0x6A || b[1] != CONTORNO_FABRICA || b[2] != 0xE8) continue;
+        int rel = *reinterpret_cast<const int*>(dir + 3);
+        if (dir + 7 + rel != FUNCION_SET_EDGE) continue;
+        (*encontrados)++;
+        resultado = dir + 1;
+    }
+    return (*encontrados == 1) ? resultado : 0;
+}
+
+static bool EscribirByte(unsigned int dir, unsigned char valor) {
+    DWORD antes;
+    void* p = reinterpret_cast<void*>(dir);
+    if (!VirtualProtect(p, 1, PAGE_EXECUTE_READWRITE, &antes)) return false;
+    *reinterpret_cast<unsigned char*>(dir) = valor;
+    VirtualProtect(p, 1, antes, &antes);
+    return true;
+}
+
+static void AplicarContornos() {
+    for (Contorno& c : CONTORNOS) {
+        if (c.cambiado) continue;
+        int encontrados;
+        c.byteValor = BuscarSetEdge(c, &encontrados);
+        if (c.byteValor == 0) continue;  // no está o está repetido: no se toca
+        c.cambiado = EscribirByte(c.byteValor, CONTORNO_PROPIO);
+    }
+}
+
+static void QuitarContornos() {
+    for (Contorno& c : CONTORNOS) {
+        if (!c.cambiado) continue;
+        if (*reinterpret_cast<const unsigned char*>(c.byteValor) != CONTORNO_PROPIO) continue;
+        if (EscribirByte(c.byteValor, CONTORNO_FABRICA)) c.cambiado = false;
+    }
+}
+
 static void AplicarMontaje() {
     for (Coordenada& c : MONTAJE) Redirigir(c);
+    AplicarContornos();
 }
 
 static void QuitarMontaje() {
     for (Coordenada& c : MONTAJE) Restaurar(c);
+    QuitarContornos();
 }
 
 // =====================================================================
@@ -258,6 +330,20 @@ static bool EscribirDiagnostico() {
             float valor = *reinterpret_cast<const float*>(puntero);
             fprintf(f, "0x%06X  %s -> 0x%08X = %.6f\n", dir + 2, nombre, puntero, valor);
         }
+    }
+
+    // ---- Contorno de la hora y el dinero ----
+    fprintf(f, "\nContorno (push 2; call CFont::SetEdge 0x%06X)\n\n", FUNCION_SET_EDGE);
+    for (const Contorno& c : CONTORNOS) {
+        if (c.cambiado) {
+            fprintf(f, "%-8s cambiado a %d en 0x%06X\n", c.nombre, CONTORNO_PROPIO, c.byteValor);
+            continue;
+        }
+        int encontrados;
+        unsigned int dir = BuscarSetEdge(c, &encontrados);
+        fprintf(f, "%-8s encontrados: %d", c.nombre, encontrados);
+        if (dir) fprintf(f, "  valor en 0x%06X", dir);
+        fprintf(f, "\n");
     }
 
     fclose(f);

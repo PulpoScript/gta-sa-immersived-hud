@@ -4,7 +4,14 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). A
 
 ## [Sin publicar]
 
-### 0.1.0-dev.9 — Dinero más pequeño y grupo más compacto (sin probar)
+### 0.1.0-dev.10 — Contorno más fino en la hora y el dinero (sin probar)
+
+- Con F11, el contorno de la hora y el dinero pasa de 2 a 1 (`CFont::SetEdge`, entero: no hay valores intermedios). Se busca `push 2; call 0x719590` en el código de cada uno y solo se cambia si aparece una vez.
+- F10 indica dónde está ese contorno y busca en `CSprite2d::DrawBarChart` (`0x728640`) el grosor del borde de las barras (2 unidades, compartido con todas las barras del juego). Las barras no se cambian todavía.
+
+### 0.1.0-dev.9 — Dinero más pequeño y grupo más compacto (probado)
+
+- ✅ El autor da por bueno el montaje completo. Pide un contorno negro un poco más fino en hora, dinero y barras.
 
 - Dinero con la misma letra que la hora (`0x58F54E` alto, `0x58F564` ancho: 0,64 / 0,32).
 - Dinero, blindaje, salud y estrellas suben para cerrar el espacio liberado; la salud termina a la altura del icono.
