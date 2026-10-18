@@ -4,14 +4,21 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). A
 
 ## [Sin publicar]
 
-### 0.1.0-dev.4 — Búsqueda de la posición de la hora (sin probar)
+### 0.1.0-dev.5 — Montaje completo fijo (sin probar)
 
+- Con F11 encendido, el HUD pasa al montaje compacto: icono en la esquina; a su izquierda hora, dinero, blindaje y salud; estrellas debajo. Al apagar, todo vuelve a su sitio.
+- Valores de primera aproximación, sacados de las capturas. Todavía no es dinámico.
+
+### 0.1.0-dev.4 — Búsqueda de la posición de la hora (probado)
+
+- Encontrada: Hora Y en `0x58EC04` (→ `0x858F8C` = 22) y Hora X en `0x58EC16` (→ `0x85950C` = 32, compartido con Dinero X y Arma X). `0x58EB31` (1,1) y `0x58EB47` (0,55) son el tamaño de letra.
 - F10 también anota en `ImmersivedHud.log` cada instrucción de float (`fadd`, `fmul`, `fsub`, `fsubr`, `fdiv`, `fdivr`, `fld`) entre `0x58EA80` y `0x58EC80`, con su puntero y su valor. Solo lectura.
 
 ### 0.1.0-dev.3 — Primer movimiento: el dinero (probado)
 
 - Probado: el dinero se mueve al encender, vuelve a su sitio al apagar y el resto del HUD no cambia.
 - Con WidescreenFix a 1920 × 1080, 1 unidad del HUD ≈ 1,93 píxeles en ambos ejes.
+- La Y del dinero es su borde de arriba, menos 12 si la salud máxima es menor de 101. La X del blindaje es su borde izquierdo y la Y su borde de arriba.
 
 - Con F11 encendido, el dinero pasa a X = 100, Y = 140 (posición de prueba); al apagar vuelve a la de fábrica.
 - Técnica: se redirige el puntero de la instrucción (`0x58F5FC`, `0x58F5DC`) a un float propio. Solo se escribe si el puntero es el de fábrica.

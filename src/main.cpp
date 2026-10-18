@@ -1,14 +1,16 @@
 // #####################################################################
 //  Immersived HUD — plugin ASI para GTA San Andreas PC 1.0 US
-//  Versión: 0.1.0-dev.4 — búsqueda de la posición de la hora
+//  Versión: 0.1.0-dev.5 — montaje completo fijo (primera aproximación)
 //  Requiere: plugin-sdk (Plugin_SA) y un cargador de ASI.
 //  Repositorio: https://github.com/PulpoScript/gta-sa-immersived-hud
 // #####################################################################
 //
 //  CONTROLES
 //    F11  Enciende / apaga el plugin (muestra un mensaje en pantalla).
-//         Encendido: el dinero se mueve a una posición de prueba.
-//         Apagado: el dinero vuelve a su posición de fábrica.
+//         Encendido: el HUD pasa al montaje compacto (icono en la
+//         esquina; a su izquierda hora, dinero, blindaje y salud;
+//         estrellas debajo).
+//         Apagado: todo vuelve a su posición de fábrica.
 //    F10  Escribe ImmersivedHud.log junto a gta_sa.exe con lo que hay en
 //         las direcciones candidatas a posición del HUD y una búsqueda de
 //         instrucciones de float en el código de la hora (solo lectura).
@@ -30,7 +32,7 @@ using namespace plugin;
 // =====================================================================
 //  CONFIGURACIÓN
 // =====================================================================
-static const char* VERSION = "0.1.0-dev.4";
+static const char* VERSION = "0.1.0-dev.5";
 static const int   TECLA_ACTIVAR = VK_F11;
 static const int   TECLA_DIAGNOSTICO = VK_F10;
 
@@ -126,9 +128,39 @@ static void Restaurar(Coordenada& c) {
     if (EscribirPuntero(c.direccion, c.original)) c.redirigida = false;
 }
 
-// ---- Dinero (verificado en dev.2: fábrica X = 32, Y = 89) ----
-static Coordenada dineroX = { 0x58F5FC, 0x0085950C, 100.0f, false };
-static Coordenada dineroY = { 0x58F5DC, 0x00866C88, 140.0f, false };
+// =====================================================================
+//  MONTAJE COMPACTO
+//  Unidades del HUD (con WidescreenFix a 1080p, 1 unidad ≈ 1,93 px).
+//  X se mide desde el borde derecho; Y desde arriba.
+//  Punteros de fábrica verificados en dev.2 y dev.4.
+//  Valores: primera aproximación sacada de las capturas; hay que ajustar.
+// =====================================================================
+static Coordenada MONTAJE[] = {
+    // ---- Icono de arma: a la esquina (fábrica 32; X = ancho - (esto + parte de WidescreenFix)) ----
+    { 0x58F927, 0x0085950C, -36.0f, false },
+    // ---- Hora: a la izquierda del icono (fábrica X 32, Y 22) ----
+    { 0x58EC16, 0x0085950C,  77.0f, false },
+    { 0x58EC04, 0x00858F8C,  22.0f, false },
+    // ---- Dinero: debajo de la hora (fábrica X 32, Y 89; el juego resta 12 si la salud máxima < 101) ----
+    { 0x58F5FC, 0x0085950C,  77.0f, false },
+    { 0x58F5DC, 0x00866C88,  53.0f, false },
+    // ---- Blindaje: debajo del dinero (fábrica X 94 = borde izquierdo, Y 48 = borde de arriba) ----
+    { 0x58EF59, 0x00866B78, 139.0f, false },
+    { 0x58EF3A, 0x00862D38,  63.0f, false },
+    // ---- Salud: debajo del blindaje (fábrica X 141, Y 77) ----
+    { 0x58EE87, 0x0086535C, 186.0f, false },
+    { 0x58EE68, 0x00866CA8,  84.0f, false },
+    // ---- Estrellas: debajo de todo (fábrica Y 114; X sin cambiar) ----
+    { 0x58DDFC, 0x00866C5C,  90.0f, false },
+};
+
+static void AplicarMontaje() {
+    for (Coordenada& c : MONTAJE) Redirigir(c);
+}
+
+static void QuitarMontaje() {
+    for (Coordenada& c : MONTAJE) Restaurar(c);
+}
 
 // =====================================================================
 //  DIAGNÓSTICO
@@ -226,9 +258,9 @@ public:
             if (teclaAhora && !teclaAntes) {
                 activo = !activo;
 
-                // ---- Mover o devolver el dinero ----
-                if (activo) { Redirigir(dineroX); Redirigir(dineroY); }
-                else        { Restaurar(dineroX); Restaurar(dineroY); }
+                // ---- Aplicar o quitar el montaje compacto ----
+                if (activo) AplicarMontaje();
+                else        QuitarMontaje();
 
                 // ---- Aviso en pantalla (sin acentos: la fuente del juego no los tiene) ----
                 sprintf(texto, "Immersived HUD v%s: %s", VERSION, activo ? "activado" : "desactivado");

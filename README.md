@@ -31,7 +31,7 @@ Necesitas Visual Studio con el compilador **MSVC v143** y [plugin-sdk](https://g
 
 | Tecla | Acción |
 |---|---|
-| F11 | Enciende / apaga el plugin (de momento mueve el dinero a una posición de prueba) |
+| F11 | Enciende / apaga el plugin (de momento cambia al montaje compacto, todavía fijo) |
 | F10 | Guarda `ImmersivedHud.log` (diagnóstico de direcciones, solo lectura) |
 
 ## Compatibilidad
