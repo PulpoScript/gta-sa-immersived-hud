@@ -4,7 +4,14 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). A
 
 ## [Sin publicar]
 
-### 0.1.0-dev.3 — Primer movimiento: el dinero (sin probar)
+### 0.1.0-dev.4 — Búsqueda de la posición de la hora (sin probar)
+
+- F10 también anota en `ImmersivedHud.log` cada instrucción de float (`fadd`, `fmul`, `fsub`, `fsubr`, `fdiv`, `fdivr`, `fld`) entre `0x58EA80` y `0x58EC80`, con su puntero y su valor. Solo lectura.
+
+### 0.1.0-dev.3 — Primer movimiento: el dinero (probado)
+
+- Probado: el dinero se mueve al encender, vuelve a su sitio al apagar y el resto del HUD no cambia.
+- Con WidescreenFix a 1920 × 1080, 1 unidad del HUD ≈ 1,93 píxeles en ambos ejes.
 
 - Con F11 encendido, el dinero pasa a X = 100, Y = 140 (posición de prueba); al apagar vuelve a la de fábrica.
 - Técnica: se redirige el puntero de la instrucción (`0x58F5FC`, `0x58F5DC`) a un float propio. Solo se escribe si el puntero es el de fábrica.
