@@ -1,6 +1,6 @@
 // #####################################################################
 //  Immersived HUD — plugin ASI para GTA San Andreas PC 1.0 US
-//  Versión: 0.1.0-dev.5 — montaje completo fijo (primera aproximación)
+//  Versión: 0.1.0-dev.6 — búsqueda de la posición de la munición
 //  Requiere: plugin-sdk (Plugin_SA) y un cargador de ASI.
 //  Repositorio: https://github.com/PulpoScript/gta-sa-immersived-hud
 // #####################################################################
@@ -13,7 +13,8 @@
 //         Apagado: todo vuelve a su posición de fábrica.
 //    F10  Escribe ImmersivedHud.log junto a gta_sa.exe con lo que hay en
 //         las direcciones candidatas a posición del HUD y una búsqueda de
-//         instrucciones de float en el código de la hora (solo lectura).
+//         instrucciones de float en el código de la hora y del icono y
+//         la munición (solo lectura).
 //
 //  TÉCNICA (la de WidescreenFix)
 //    Cada coordenada se lee con una instrucción "fmul [puntero]". No se
@@ -32,7 +33,7 @@ using namespace plugin;
 // =====================================================================
 //  CONFIGURACIÓN
 // =====================================================================
-static const char* VERSION = "0.1.0-dev.5";
+static const char* VERSION = "0.1.0-dev.6";
 static const int   TECLA_ACTIVAR = VK_F11;
 static const int   TECLA_DIAGNOSTICO = VK_F10;
 
@@ -75,9 +76,17 @@ static const Candidata CANDIDATAS[] = {
     { "Dinero alto 2",        0x58F5CE + 2 },
 };
 
-// ---- Rango de código donde buscar la posición de la hora ----
-static const unsigned int BUSQUEDA_INICIO = 0x58EA80;
-static const unsigned int BUSQUEDA_FIN    = 0x58EC80;
+// ---- Rangos de código donde buscar posiciones ----
+struct Rango {
+    const char* nombre;
+    unsigned int inicio;
+    unsigned int fin;
+};
+
+static const Rango BUSQUEDAS[] = {
+    { "hora",              0x58EA80, 0x58EC80 },  // alrededor de las escalas de la hora
+    { "icono y municion",  0x58F880, 0x58FAC0 },  // alrededor de las escalas del icono y la munición
+};
 
 // =====================================================================
 //  LECTURA SEGURA
@@ -201,16 +210,18 @@ static bool EscribirDiagnostico() {
         }
     }
 
-    // ---- Búsqueda en el código de la hora ----
+    // ---- Búsqueda de instrucciones de float ----
     // Instrucciones x87 con operando de memoria directo:
     //   D8 05 fadd, D8 0D fmul, D8 25 fsub, D8 2D fsubr, D8 35 fdiv,
     //   D8 3D fdivr, D9 05 fld. Solo se anotan si el puntero es legible.
-    // Rango: alrededor de las escalas de la hora de WidescreenFix
-    // (0x58EB29 a 0x58EC0C).
-    fprintf(f, "\nBusqueda 0x%06X-0x%06X (hora)\n", BUSQUEDA_INICIO, BUSQUEDA_FIN);
-    fprintf(f, "Columnas: direccion del operando | instruccion | puntero | float apuntado\n\n");
-    if (SePuedeLeer(BUSQUEDA_INICIO, BUSQUEDA_FIN - BUSQUEDA_INICIO + 6)) {
-        for (unsigned int dir = BUSQUEDA_INICIO; dir < BUSQUEDA_FIN; dir++) {
+    for (const Rango& r : BUSQUEDAS) {
+        fprintf(f, "\nBusqueda 0x%06X-0x%06X (%s)\n", r.inicio, r.fin, r.nombre);
+        fprintf(f, "Columnas: direccion del operando | instruccion | puntero | float apuntado\n\n");
+        if (!SePuedeLeer(r.inicio, r.fin - r.inicio + 6)) {
+            fprintf(f, "no se puede leer el rango\n");
+            continue;
+        }
+        for (unsigned int dir = r.inicio; dir < r.fin; dir++) {
             const unsigned char* b = reinterpret_cast<const unsigned char*>(dir);
             const char* nombre = NULL;
             if (b[0] == 0xD8) {
@@ -232,8 +243,6 @@ static bool EscribirDiagnostico() {
             float valor = *reinterpret_cast<const float*>(puntero);
             fprintf(f, "0x%06X  %s -> 0x%08X = %.6f\n", dir + 2, nombre, puntero, valor);
         }
-    } else {
-        fprintf(f, "no se puede leer el rango\n");
     }
 
     fclose(f);
