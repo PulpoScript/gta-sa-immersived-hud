@@ -6,13 +6,14 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). A
 
 ### 0.1.0-dev.6 — Búsqueda de la posición de la munición (sin probar)
 
-- F10 también busca instrucciones de float entre `0x58F880` y `0x58FAC0` (icono y munición).
+- F10 también busca instrucciones de float entre `0x58F880` y `0x58FAC0` (icono y munición) y entre `0x58DC80` y `0x58E020` (estrellas).
 
 ### 0.1.0-dev.5 — Montaje completo fijo (probado en parte)
 
 - ✅ Icono, hora, dinero y salud quedan donde se esperaba. Dinero muy pegado a la hora.
 - ❌ La munición no sigue al icono: se queda en su sitio de fábrica, sobre el hueco del blindaje.
-- Sin comprobar: blindaje y estrellas (no salían en la prueba).
+- Estrellas: `0x58DDFC` mueve solo las estrellas encendidas; las apagadas usan otra Y (sin encontrar). La X está bien.
+- Sin comprobar: blindaje.
 
 - Con F11 encendido, el HUD pasa al montaje compacto: icono en la esquina; a su izquierda hora, dinero, blindaje y salud; estrellas debajo. Al apagar, todo vuelve a su sitio.
 - Valores de primera aproximación, sacados de las capturas. Todavía no es dinámico.

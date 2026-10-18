@@ -13,8 +13,8 @@
 //         Apagado: todo vuelve a su posición de fábrica.
 //    F10  Escribe ImmersivedHud.log junto a gta_sa.exe con lo que hay en
 //         las direcciones candidatas a posición del HUD y una búsqueda de
-//         instrucciones de float en el código de la hora y del icono y
-//         la munición (solo lectura).
+//         instrucciones de float en el código de la hora, del icono y la
+//         munición y de las estrellas (solo lectura).
 //
 //  TÉCNICA (la de WidescreenFix)
 //    Cada coordenada se lee con una instrucción "fmul [puntero]". No se
@@ -86,6 +86,7 @@ struct Rango {
 static const Rango BUSQUEDAS[] = {
     { "hora",              0x58EA80, 0x58EC80 },  // alrededor de las escalas de la hora
     { "icono y municion",  0x58F880, 0x58FAC0 },  // alrededor de las escalas del icono y la munición
+    { "estrellas",         0x58DC80, 0x58E020 },  // alrededor de las escalas de las estrellas
 };
 
 // =====================================================================
