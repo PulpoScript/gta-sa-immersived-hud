@@ -1,0 +1,37 @@
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.VC.db
+*.VC.opendb
+ipch/
+
+# Compilación
+[Dd]ebug/
+[Rr]elease/
+x86/
+x64/
+[Bb]in/
+[Oo]bj/
+[Oo]utput/
+*.obj
+*.pch
+*.pdb
+*.ilk
+*.idb
+*.iobj
+*.ipdb
+*.exp
+*.lib
+*.tlog
+*.log
+
+# Binarios del plugin
+*.asi
+*.dll
+
+# Sistema
+Thumbs.db
+Desktop.ini
