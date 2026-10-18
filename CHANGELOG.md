@@ -4,7 +4,17 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). A
 
 ## [Sin publicar]
 
-### 0.1.0-dev.8 — Icono en la esquina y hora más pequeña (sin probar)
+### 0.1.0-dev.9 — Dinero más pequeño y grupo más compacto (sin probar)
+
+- Dinero con la misma letra que la hora (`0x58F54E` alto, `0x58F564` ancho: 0,64 / 0,32).
+- Dinero, blindaje, salud y estrellas suben para cerrar el espacio liberado; la salud termina a la altura del icono.
+
+### 0.1.0-dev.8 — Icono en la esquina y hora más pequeña (probado)
+
+- ✅ Icono pegado a la esquina; hora con letra al 58 %: el autor da ese tamaño por bueno.
+- Encontrados: letra del dinero (`0x58F54E` = 1,1, `0x58F564` = 0,55, mismas constantes que la hora); tamaño del icono 47 × 58 (`0x58D8CB`/`0x58D935` y `0x58D896`/`0x58D94D`).
+- Salud y blindaje tienen una segunda pasada (`0x58EED0` = 194, `0x58EEFD` = 141, `0x58EFA1` = 164, `0x58EFCE` = 94): probablemente el segundo jugador. No se toca.
+- Estrellas: tamaño 1,21 / 0,605 en `0x58DCAA`/`0x58DCC0`, `0x58DD70`/`0x58DD86` y `0x58DF5D`/`0x58DF79`.
 
 - El grupo se pega a la esquina: icono, munición, hora, dinero, barras y estrellas se desplazan unas 20 unidades a la derecha; icono y hora suben.
 - Hora con letra al 58 % (`0x58EB31` alto, `0x58EB47` ancho): prueba de cambio de tamaño.

@@ -1,6 +1,6 @@
 // #####################################################################
 //  Immersived HUD — plugin ASI para GTA San Andreas PC 1.0 US
-//  Versión: 0.1.0-dev.8 — icono en la esquina y hora más pequeña
+//  Versión: 0.1.0-dev.9 — dinero más pequeño y grupo más compacto
 //  Requiere: plugin-sdk (Plugin_SA) y un cargador de ASI.
 //  Repositorio: https://github.com/PulpoScript/gta-sa-immersived-hud
 // #####################################################################
@@ -33,7 +33,7 @@ using namespace plugin;
 // =====================================================================
 //  CONFIGURACIÓN
 // =====================================================================
-static const char* VERSION = "0.1.0-dev.8";
+static const char* VERSION = "0.1.0-dev.9";
 static const int   TECLA_ACTIVAR = VK_F11;
 static const int   TECLA_DIAGNOSTICO = VK_F10;
 
@@ -151,29 +151,31 @@ static void Restaurar(Coordenada& c) {
 static Coordenada MONTAJE[] = {
     // ---- Icono de arma: pegado a la esquina (fábrica X 32, Y 20) ----
     { 0x58F927, 0x0085950C, -57.0f, false },  // X = ancho - (esto + parte de WidescreenFix)
-    { 0x58F913, 0x00858BA4,   4.5f, false },  // Y (sin probar)
+    { 0x58F913, 0x00858BA4,   4.5f, false },  // Y
     // ---- Munición: sigue al icono, sobre su parte de abajo (fábrica X 32, Y 20 + 43) ----
     { 0x58FA02, 0x0085950C, -57.0f, false },
-    { 0x58F9DC, 0x00858BA4,   4.5f, false },  // Y base (sin probar)
+    { 0x58F9DC, 0x00858BA4,   4.5f, false },  // Y base
     // ---- Hora: a la izquierda del icono, letra más pequeña (fábrica X 32, Y 22, letra 1,1 / 0,55) ----
     { 0x58EC16, 0x0085950C,  57.0f, false },
     { 0x58EC04, 0x00858F8C,  12.0f, false },
-    { 0x58EB31, 0x00858F14,  0.64f, false },  // alto de letra (sin probar)
-    { 0x58EB47, 0x00866CAC,  0.32f, false },  // ancho de letra (sin probar)
-    // ---- Dinero: debajo de la hora (fábrica X 32, Y 89; el juego resta 12 si la salud máxima < 101) ----
+    { 0x58EB31, 0x00858F14,  0.64f, false },  // alto de letra
+    { 0x58EB47, 0x00866CAC,  0.32f, false },  // ancho de letra
+    // ---- Dinero: debajo de la hora, misma letra (fábrica X 32, Y 89, letra 1,1 / 0,55; el juego resta 12 a la Y si la salud máxima < 101) ----
     { 0x58F5FC, 0x0085950C,  57.0f, false },
-    { 0x58F5DC, 0x00866C88,  55.0f, false },
+    { 0x58F5DC, 0x00866C88,  38.5f, false },
+    { 0x58F54E, 0x00858F14,  0.64f, false },  // alto de letra (sin probar)
+    { 0x58F564, 0x00866CAC,  0.32f, false },  // ancho de letra (sin probar)
     // ---- Blindaje: debajo del dinero (fábrica X 94, Y 48) ----
     { 0x58EF59, 0x00866B78, 119.0f, false },
-    { 0x58EF3A, 0x00862D38,  69.0f, false },
-    // ---- Salud: debajo del blindaje (fábrica X 141, Y 77) ----
+    { 0x58EF3A, 0x00862D38,  43.0f, false },
+    // ---- Salud: debajo del blindaje, termina a la altura del icono (fábrica X 141, Y 77) ----
     { 0x58EE87, 0x0086535C, 166.0f, false },
-    { 0x58EE68, 0x00866CA8,  90.0f, false },
+    { 0x58EE68, 0x00866CA8,  60.0f, false },
     // ---- Estrellas: debajo de la salud, alineadas con el icono (fábrica X 29, Y 114) ----
     { 0x58DD0F, 0x00863210,   8.0f, false },
-    { 0x58DDFC, 0x00866C5C, 102.0f, false },  // encendidas (fld)
-    { 0x58DEF5, 0x00866C5C, 102.0f, false },  // apagadas
-    { 0x58DFB3, 0x00866C5C, 102.0f, false },  // otra pasada con la misma Y
+    { 0x58DDFC, 0x00866C5C,  72.0f, false },  // encendidas (fld)
+    { 0x58DEF5, 0x00866C5C,  72.0f, false },  // apagadas
+    { 0x58DFB3, 0x00866C5C,  72.0f, false },  // otra pasada con la misma Y
 };
 
 static void AplicarMontaje() {
