@@ -1,6 +1,6 @@
 // #####################################################################
 //  Immersived HUD — plugin ASI para GTA San Andreas PC 1.0 US
-//  Versión: 0.1.0-dev.6 — búsqueda de la posición de la munición
+//  Versión: 0.1.0-dev.7 — montaje completo: munición, estrellas y márgenes
 //  Requiere: plugin-sdk (Plugin_SA) y un cargador de ASI.
 //  Repositorio: https://github.com/PulpoScript/gta-sa-immersived-hud
 // #####################################################################
@@ -33,7 +33,7 @@ using namespace plugin;
 // =====================================================================
 //  CONFIGURACIÓN
 // =====================================================================
-static const char* VERSION = "0.1.0-dev.6";
+static const char* VERSION = "0.1.0-dev.7";
 static const int   TECLA_ACTIVAR = VK_F11;
 static const int   TECLA_DIAGNOSTICO = VK_F10;
 
@@ -148,20 +148,24 @@ static void Restaurar(Coordenada& c) {
 static Coordenada MONTAJE[] = {
     // ---- Icono de arma: a la esquina (fábrica 32; X = ancho - (esto + parte de WidescreenFix)) ----
     { 0x58F927, 0x0085950C, -36.0f, false },
+    // ---- Munición: sigue al icono, sobre su parte de abajo (fábrica 32, igual que el icono) ----
+    { 0x58FA02, 0x0085950C, -36.0f, false },
     // ---- Hora: a la izquierda del icono (fábrica X 32, Y 22) ----
     { 0x58EC16, 0x0085950C,  77.0f, false },
     { 0x58EC04, 0x00858F8C,  22.0f, false },
     // ---- Dinero: debajo de la hora (fábrica X 32, Y 89; el juego resta 12 si la salud máxima < 101) ----
     { 0x58F5FC, 0x0085950C,  77.0f, false },
-    { 0x58F5DC, 0x00866C88,  53.0f, false },
-    // ---- Blindaje: debajo del dinero (fábrica X 94 = borde izquierdo, Y 48 = borde de arriba) ----
+    { 0x58F5DC, 0x00866C88,  55.0f, false },
+    // ---- Blindaje: debajo del dinero (fábrica X 94, Y 48) ----
     { 0x58EF59, 0x00866B78, 139.0f, false },
-    { 0x58EF3A, 0x00862D38,  63.0f, false },
+    { 0x58EF3A, 0x00862D38,  69.0f, false },
     // ---- Salud: debajo del blindaje (fábrica X 141, Y 77) ----
     { 0x58EE87, 0x0086535C, 186.0f, false },
-    { 0x58EE68, 0x00866CA8,  84.0f, false },
-    // ---- Estrellas: debajo de todo (fábrica Y 114; X sin cambiar) ----
-    { 0x58DDFC, 0x00866C5C,  90.0f, false },
+    { 0x58EE68, 0x00866CA8,  90.0f, false },
+    // ---- Estrellas: debajo de la salud (fábrica Y 114; X sin cambiar) ----
+    { 0x58DDFC, 0x00866C5C, 102.0f, false },  // encendidas (fld)
+    { 0x58DEF5, 0x00866C5C, 102.0f, false },  // apagadas (verificado en dev.6, sin probar)
+    { 0x58DFB3, 0x00866C5C, 102.0f, false },  // otra pasada con la misma Y (sin probar)
 };
 
 static void AplicarMontaje() {

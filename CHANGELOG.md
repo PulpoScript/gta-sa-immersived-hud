@@ -4,7 +4,19 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). A
 
 ## [Sin publicar]
 
-### 0.1.0-dev.6 — Búsqueda de la posición de la munición (sin probar)
+### 0.1.0-dev.7 — Montaje completo: munición, estrellas y márgenes (sin probar)
+
+- La munición sigue al icono (`0x58FA02`, el "32" de su X).
+- Las estrellas apagadas usan la misma Y que las encendidas (`0x58DEF5`, `0x58DFB3`).
+- Más separación entre hora, dinero y blindaje; estrellas debajo de la salud.
+
+### 0.1.0-dev.6 — Búsqueda de la posición de la munición (probado)
+
+- Munición: X = ancho − (32 [`0x58FA02`] + parte de WidescreenFix) + 47 × 0,5; Y = 20 [`0x58F9DC`] + 43 [`0x58F9E6`].
+- Icono Y: `0x58F913` (→ `0x858BA4` = 20).
+- Estrellas: además de `0x58DDFC`, la Y 114 se usa en `0x58DEF5` y `0x58DFB3`. Tamaño 1,21 / 0,605.
+- `0x58FA4C`–`0x58FAB1` repite el cálculo de la munición con un desplazamiento de 138: probablemente el segundo jugador. No se toca.
+- La escala de WidescreenFix depende de la resolución (a 1920 × 1080, 1 unidad ≈ 1,93 px).
 
 - F10 también busca instrucciones de float entre `0x58F880` y `0x58FAC0` (icono y munición) y entre `0x58DC80` y `0x58E020` (estrellas).
 
@@ -13,7 +25,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). A
 - ✅ Icono, hora, dinero y salud quedan donde se esperaba. Dinero muy pegado a la hora.
 - ❌ La munición no sigue al icono: se queda en su sitio de fábrica, sobre el hueco del blindaje.
 - Estrellas: `0x58DDFC` mueve solo las estrellas encendidas; las apagadas usan otra Y (sin encontrar). La X está bien.
-- Sin comprobar: blindaje.
+- Blindaje: bien colocado, pero dinero, hora y blindaje demasiado juntos.
 
 - Con F11 encendido, el HUD pasa al montaje compacto: icono en la esquina; a su izquierda hora, dinero, blindaje y salud; estrellas debajo. Al apagar, todo vuelve a su sitio.
 - Valores de primera aproximación, sacados de las capturas. Todavía no es dinámico.
