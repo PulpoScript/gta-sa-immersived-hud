@@ -4,7 +4,17 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). A
 
 ## [Sin publicar]
 
-### 0.1.0-dev.7 — Montaje completo: munición, estrellas y márgenes (sin probar)
+### 0.1.0-dev.8 — Icono en la esquina y hora más pequeña (sin probar)
+
+- El grupo se pega a la esquina: icono, munición, hora, dinero, barras y estrellas se desplazan unas 20 unidades a la derecha; icono y hora suben.
+- Hora con letra al 58 % (`0x58EB31` alto, `0x58EB47` ancho): prueba de cambio de tamaño.
+- F10 busca también en el código del dinero, las barras y el dibujo del icono (punteros de tamaño).
+- Objetivo (boceto del autor): texto al ~60 % del tamaño original, barras más largas y finas, estrellas más pequeñas.
+
+### 0.1.0-dev.7 — Montaje completo: munición, estrellas y márgenes (probado)
+
+- ✅ La munición sigue al icono; las estrellas apagadas se alinean con las encendidas; los márgenes son correctos.
+- Pendiente: proporciones. En el boceto el texto es más pequeño y el grupo está pegado a la esquina.
 
 - La munición sigue al icono (`0x58FA02`, el "32" de su X).
 - Las estrellas apagadas usan la misma Y que las encendidas (`0x58DEF5`, `0x58DFB3`).

@@ -1,6 +1,6 @@
 // #####################################################################
 //  Immersived HUD — plugin ASI para GTA San Andreas PC 1.0 US
-//  Versión: 0.1.0-dev.7 — montaje completo: munición, estrellas y márgenes
+//  Versión: 0.1.0-dev.8 — icono en la esquina y hora más pequeña
 //  Requiere: plugin-sdk (Plugin_SA) y un cargador de ASI.
 //  Repositorio: https://github.com/PulpoScript/gta-sa-immersived-hud
 // #####################################################################
@@ -13,8 +13,8 @@
 //         Apagado: todo vuelve a su posición de fábrica.
 //    F10  Escribe ImmersivedHud.log junto a gta_sa.exe con lo que hay en
 //         las direcciones candidatas a posición del HUD y una búsqueda de
-//         instrucciones de float en el código de la hora, del icono y la
-//         munición y de las estrellas (solo lectura).
+//         instrucciones de float en el código de la hora, el icono, la
+//         munición, las estrellas, el dinero y las barras (solo lectura).
 //
 //  TÉCNICA (la de WidescreenFix)
 //    Cada coordenada se lee con una instrucción "fmul [puntero]". No se
@@ -33,7 +33,7 @@ using namespace plugin;
 // =====================================================================
 //  CONFIGURACIÓN
 // =====================================================================
-static const char* VERSION = "0.1.0-dev.7";
+static const char* VERSION = "0.1.0-dev.8";
 static const int   TECLA_ACTIVAR = VK_F11;
 static const int   TECLA_DIAGNOSTICO = VK_F10;
 
@@ -87,6 +87,9 @@ static const Rango BUSQUEDAS[] = {
     { "hora",              0x58EA80, 0x58EC80 },  // alrededor de las escalas de la hora
     { "icono y municion",  0x58F880, 0x58FAC0 },  // alrededor de las escalas del icono y la munición
     { "estrellas",         0x58DC80, 0x58E020 },  // alrededor de las escalas de las estrellas
+    { "dinero",            0x58F500, 0x58F620 },  // alrededor de las escalas del dinero
+    { "salud y blindaje",  0x58EE00, 0x58F000 },  // alrededor de las escalas de las barras
+    { "dibujo del icono",  0x58D840, 0x58D980 },  // alrededor de las escalas del dibujo del icono
 };
 
 // =====================================================================
@@ -146,26 +149,31 @@ static void Restaurar(Coordenada& c) {
 //  Valores: primera aproximación sacada de las capturas; hay que ajustar.
 // =====================================================================
 static Coordenada MONTAJE[] = {
-    // ---- Icono de arma: a la esquina (fábrica 32; X = ancho - (esto + parte de WidescreenFix)) ----
-    { 0x58F927, 0x0085950C, -36.0f, false },
-    // ---- Munición: sigue al icono, sobre su parte de abajo (fábrica 32, igual que el icono) ----
-    { 0x58FA02, 0x0085950C, -36.0f, false },
-    // ---- Hora: a la izquierda del icono (fábrica X 32, Y 22) ----
-    { 0x58EC16, 0x0085950C,  77.0f, false },
-    { 0x58EC04, 0x00858F8C,  22.0f, false },
+    // ---- Icono de arma: pegado a la esquina (fábrica X 32, Y 20) ----
+    { 0x58F927, 0x0085950C, -57.0f, false },  // X = ancho - (esto + parte de WidescreenFix)
+    { 0x58F913, 0x00858BA4,   4.5f, false },  // Y (sin probar)
+    // ---- Munición: sigue al icono, sobre su parte de abajo (fábrica X 32, Y 20 + 43) ----
+    { 0x58FA02, 0x0085950C, -57.0f, false },
+    { 0x58F9DC, 0x00858BA4,   4.5f, false },  // Y base (sin probar)
+    // ---- Hora: a la izquierda del icono, letra más pequeña (fábrica X 32, Y 22, letra 1,1 / 0,55) ----
+    { 0x58EC16, 0x0085950C,  57.0f, false },
+    { 0x58EC04, 0x00858F8C,  12.0f, false },
+    { 0x58EB31, 0x00858F14,  0.64f, false },  // alto de letra (sin probar)
+    { 0x58EB47, 0x00866CAC,  0.32f, false },  // ancho de letra (sin probar)
     // ---- Dinero: debajo de la hora (fábrica X 32, Y 89; el juego resta 12 si la salud máxima < 101) ----
-    { 0x58F5FC, 0x0085950C,  77.0f, false },
+    { 0x58F5FC, 0x0085950C,  57.0f, false },
     { 0x58F5DC, 0x00866C88,  55.0f, false },
     // ---- Blindaje: debajo del dinero (fábrica X 94, Y 48) ----
-    { 0x58EF59, 0x00866B78, 139.0f, false },
+    { 0x58EF59, 0x00866B78, 119.0f, false },
     { 0x58EF3A, 0x00862D38,  69.0f, false },
     // ---- Salud: debajo del blindaje (fábrica X 141, Y 77) ----
-    { 0x58EE87, 0x0086535C, 186.0f, false },
+    { 0x58EE87, 0x0086535C, 166.0f, false },
     { 0x58EE68, 0x00866CA8,  90.0f, false },
-    // ---- Estrellas: debajo de la salud (fábrica Y 114; X sin cambiar) ----
+    // ---- Estrellas: debajo de la salud, alineadas con el icono (fábrica X 29, Y 114) ----
+    { 0x58DD0F, 0x00863210,   8.0f, false },
     { 0x58DDFC, 0x00866C5C, 102.0f, false },  // encendidas (fld)
-    { 0x58DEF5, 0x00866C5C, 102.0f, false },  // apagadas (verificado en dev.6, sin probar)
-    { 0x58DFB3, 0x00866C5C, 102.0f, false },  // otra pasada con la misma Y (sin probar)
+    { 0x58DEF5, 0x00866C5C, 102.0f, false },  // apagadas
+    { 0x58DFB3, 0x00866C5C, 102.0f, false },  // otra pasada con la misma Y
 };
 
 static void AplicarMontaje() {
