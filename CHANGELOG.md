@@ -4,12 +4,20 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). A
 
 ## [Sin publicar]
 
-### 0.1.0-dev.12 — Barras un 10 % más pequeñas (sin probar)
+### 0.1.0-dev.13 — Borde de las barras más fino y estrellas más pequeñas (sin probar)
+
+- Borde negro de las barras al 70 %: se redirige la escala de las 4 instrucciones del borde de `DrawBarChart` (`0x728866`, `0x7288AB`, `0x7288F7`, `0x728943`) solo mientras se dibuja el HUD (`drawHudEvent`), porque la función también dibuja otras barras.
+- Estrellas al 88 % (1,21 / 0,605 → 1,065 / 0,532 en sus tres pasadas).
+
+### 0.1.0-dev.12 — Barras un 10 % más pequeñas (probado en parte)
+
+- Solo se aplicó el alto de la salud (`0x589358`, 9 → 8). El largo de la salud aparece 2 veces y el blindaje no se encontró en `0x58A160`–`0x58A230`: no se tocaron. El autor da por bueno el resultado.
+- Volcado de `DrawBarChart`: cada lado del borde es `fild [resolución]; fmul [escala de WidescreenFix]; fadd st, st` (× 2).
 
 - Blindaje 62 × 9 → 56 × 8; salud 109 × 9 → 98 × 8 (a salud máxima). El borde derecho sigue alineado con hora y dinero.
 - Se busca el valor dentro de `RenderArmorBar` (`0x58A160`) y `RenderHealthBar` (`0x589270`) y solo se redirige si aparece una vez. F10 indica el resultado.
 
-### 0.1.0-dev.11 — Volcado de DrawBarChart (sin probar)
+### 0.1.0-dev.11 — Volcado de DrawBarChart (probado)
 
 - F10 añade un volcado en hexadecimal de `0x728640`–`0x728A40` para localizar el grosor del borde de las barras.
 

@@ -1,6 +1,6 @@
 // #####################################################################
 //  Immersived HUD — plugin ASI para GTA San Andreas PC 1.0 US
-//  Versión: 0.1.0-dev.12 — barras un 10 % más pequeñas
+//  Versión: 0.1.0-dev.13 — borde de las barras más fino y estrellas más pequeñas
 //  Requiere: plugin-sdk (Plugin_SA) y un cargador de ASI.
 //  Repositorio: https://github.com/PulpoScript/gta-sa-immersived-hud
 // #####################################################################
@@ -35,7 +35,7 @@ using namespace plugin;
 // =====================================================================
 //  CONFIGURACIÓN
 // =====================================================================
-static const char* VERSION = "0.1.0-dev.12";
+static const char* VERSION = "0.1.0-dev.13";
 static const int   TECLA_ACTIVAR = VK_F11;
 static const int   TECLA_DIAGNOSTICO = VK_F10;
 
@@ -183,6 +183,13 @@ static Coordenada MONTAJE[] = {
     { 0x58DDFC, 0x00866C5C,  72.0f, false },  // encendidas (fld)
     { 0x58DEF5, 0x00866C5C,  72.0f, false },  // apagadas
     { 0x58DFB3, 0x00866C5C,  72.0f, false },  // otra pasada con la misma Y
+    // ---- Estrellas: un 12 % más pequeñas (fábrica alto 1,21, ancho 0,605; tres pasadas) ----
+    { 0x58DCAA, 0x00866C64, 1.065f, false },
+    { 0x58DCC0, 0x00866C60, 0.532f, false },
+    { 0x58DD70, 0x00866C64, 1.065f, false },
+    { 0x58DD86, 0x00866C60, 0.532f, false },
+    { 0x58DF5D, 0x00866C64, 1.065f, false },
+    { 0x58DF79, 0x00866C60, 0.532f, false },
 };
 
 // =====================================================================
@@ -318,6 +325,57 @@ static void AplicarTamanos() {
 static void QuitarTamanos() {
     for (Tamano& t : TAMANOS) Restaurar(t.c);
 }
+
+// =====================================================================
+//  BORDE NEGRO DE LAS BARRAS
+//  CSprite2d::DrawBarChart (0x728640) calcula cada lado del borde como
+//  "resolución × escala × 2" (fild; fmul [escala]; fadd st, st). La
+//  escala es de WidescreenFix, así que su dirección no es fija: se lee
+//  al aplicar y el float propio vale esa escala × BORDE_FACTOR.
+//  DrawBarChart también dibuja otras barras del juego, por eso el cambio
+//  solo dura mientras se dibuja el HUD (drawHudEvent before / after).
+//  Volcado verificado en dev.11: las 4 instrucciones son D8 0D.
+// =====================================================================
+static const float BORDE_FACTOR = 0.7f;
+
+struct Borde {
+    unsigned int direccion;  // operando del fmul
+    unsigned int original;   // puntero leído al aplicar
+    float valor;
+    bool redirigida;
+};
+
+static Borde BORDES[] = {
+    { 0x728866, 0, 0.0f, false },  // arriba
+    { 0x7288AB, 0, 0.0f, false },  // abajo
+    { 0x7288F7, 0, 0.0f, false },  // izquierda
+    { 0x728943, 0, 0.0f, false },  // derecha
+};
+
+static void AplicarBordes() {
+    for (Borde& b : BORDES) {
+        if (b.redirigida) continue;
+        const unsigned char* op = reinterpret_cast<const unsigned char*>(b.direccion - 2);
+        if (op[0] != 0xD8 || op[1] != 0x0D) continue;  // no es fmul [mem]: no se toca
+        unsigned int puntero = *reinterpret_cast<const unsigned int*>(b.direccion);
+        if (!SePuedeLeer(puntero, 4)) continue;
+        float escala = *reinterpret_cast<const float*>(puntero);
+        if (!(escala > 0.0f && escala < 0.01f)) continue;  // valor inesperado: no se toca
+        b.original = puntero;
+        b.valor = escala * BORDE_FACTOR;
+        b.redirigida = EscribirPuntero(b.direccion, reinterpret_cast<unsigned int>(&b.valor));
+    }
+}
+
+static void QuitarBordes() {
+    for (Borde& b : BORDES) {
+        if (!b.redirigida) continue;
+        if (*reinterpret_cast<const unsigned int*>(b.direccion) != reinterpret_cast<unsigned int>(&b.valor)) continue;
+        if (EscribirPuntero(b.direccion, b.original)) b.redirigida = false;
+    }
+}
+
+static bool montajeActivo = false;  // F11 encendido
 
 static void AplicarMontaje() {
     for (Coordenada& c : MONTAJE) Redirigir(c);
@@ -466,6 +524,7 @@ public:
             bool teclaAhora = (GetAsyncKeyState(TECLA_ACTIVAR) & 0x8000) != 0;
             if (teclaAhora && !teclaAntes) {
                 activo = !activo;
+                montajeActivo = activo;
 
                 // ---- Aplicar o quitar el montaje compacto ----
                 if (activo) AplicarMontaje();
@@ -486,6 +545,14 @@ public:
                 CHud::SetHelpMessage(texto, true, false, false);
             }
             diagAntes = diagAhora;
+        };
+
+        // ---- Borde de las barras: solo mientras se dibuja el HUD ----
+        Events::drawHudEvent.before += [] {
+            if (montajeActivo) AplicarBordes();
+        };
+        Events::drawHudEvent.after += [] {
+            QuitarBordes();
         };
     }
 } immersivedHud;
