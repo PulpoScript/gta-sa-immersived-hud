@@ -1,18 +1,22 @@
 // #####################################################################
 //  Immersived HUD — plugin ASI para GTA San Andreas PC 1.0 US
-//  Versión: 0.1.0-dev.2 — diagnóstico de direcciones (solo lectura)
+//  Versión: 0.1.0-dev.3 — primer movimiento: el dinero
 //  Requiere: plugin-sdk (Plugin_SA) y un cargador de ASI.
 //  Repositorio: https://github.com/PulpoScript/gta-sa-immersived-hud
 // #####################################################################
 //
 //  CONTROLES
 //    F11  Enciende / apaga el plugin (muestra un mensaje en pantalla).
+//         Encendido: el dinero se mueve a una posición de prueba.
+//         Apagado: el dinero vuelve a su posición de fábrica.
 //    F10  Escribe ImmersivedHud.log junto a gta_sa.exe con lo que hay en
-//         las direcciones candidatas a posición del HUD.
+//         las direcciones candidatas a posición del HUD (solo lectura).
 //
-//  Esta versión NO escribe nada en la memoria del juego: solo lee.
-//  Sirve para confirmar qué dirección es cada coordenada y su valor de
-//  fábrica antes de mover ningún elemento.
+//  TÉCNICA (la de WidescreenFix)
+//    Cada coordenada se lee con una instrucción "fmul [puntero]". No se
+//    toca la constante del juego (algunas se comparten entre elementos):
+//    se cambia el puntero de la instrucción para que apunte a un float
+//    propio. Antes de escribir se comprueba que el puntero sea el original.
 // #####################################################################
 
 #include "plugin.h"
@@ -25,7 +29,7 @@ using namespace plugin;
 // =====================================================================
 //  CONFIGURACIÓN
 // =====================================================================
-static const char* VERSION = "0.1.0-dev.2";
+static const char* VERSION = "0.1.0-dev.3";
 static const int   TECLA_ACTIVAR = VK_F11;
 static const int   TECLA_DIAGNOSTICO = VK_F10;
 
@@ -80,6 +84,46 @@ static bool SePuedeLeer(unsigned int dir, unsigned int tam) {
     unsigned int fin = reinterpret_cast<unsigned int>(mbi.BaseAddress) + mbi.RegionSize;
     return dir + tam <= fin;
 }
+
+// =====================================================================
+//  REDIRECCIÓN DE PUNTEROS
+// =====================================================================
+// Un puntero de coordenada: dónde está, a qué apunta de fábrica y el
+// float propio al que se redirige.
+struct Coordenada {
+    unsigned int direccion;    // operando de 4 bytes de la instrucción
+    unsigned int original;     // puntero de fábrica (verificado en dev.2)
+    float valor;               // valor propio (unidades del HUD)
+    bool redirigida;
+};
+
+// Escribe 4 bytes en el código del juego. Devuelve true si se pudo.
+static bool EscribirPuntero(unsigned int dir, unsigned int valor) {
+    DWORD antes;
+    void* p = reinterpret_cast<void*>(dir);
+    if (!VirtualProtect(p, 4, PAGE_EXECUTE_READWRITE, &antes)) return false;
+    *reinterpret_cast<unsigned int*>(dir) = valor;
+    VirtualProtect(p, 4, antes, &antes);
+    return true;
+}
+
+// Apunta la instrucción al float propio, solo si el puntero es el de fábrica.
+static void Redirigir(Coordenada& c) {
+    if (c.redirigida) return;
+    if (*reinterpret_cast<const unsigned int*>(c.direccion) != c.original) return;
+    c.redirigida = EscribirPuntero(c.direccion, reinterpret_cast<unsigned int>(&c.valor));
+}
+
+// Devuelve la instrucción a su puntero de fábrica, solo si lo cambiamos nosotros.
+static void Restaurar(Coordenada& c) {
+    if (!c.redirigida) return;
+    if (*reinterpret_cast<const unsigned int*>(c.direccion) != reinterpret_cast<unsigned int>(&c.valor)) return;
+    if (EscribirPuntero(c.direccion, c.original)) c.redirigida = false;
+}
+
+// ---- Dinero (verificado en dev.2: fábrica X = 32, Y = 89) ----
+static Coordenada dineroX = { 0x58F5FC, 0x0085950C, 100.0f, false };
+static Coordenada dineroY = { 0x58F5DC, 0x00866C88, 140.0f, false };
 
 // =====================================================================
 //  DIAGNÓSTICO
@@ -141,6 +185,10 @@ public:
             bool teclaAhora = (GetAsyncKeyState(TECLA_ACTIVAR) & 0x8000) != 0;
             if (teclaAhora && !teclaAntes) {
                 activo = !activo;
+
+                // ---- Mover o devolver el dinero ----
+                if (activo) { Redirigir(dineroX); Redirigir(dineroY); }
+                else        { Restaurar(dineroX); Restaurar(dineroY); }
 
                 // ---- Aviso en pantalla (sin acentos: la fuente del juego no los tiene) ----
                 sprintf(texto, "Immersived HUD v%s: %s", VERSION, activo ? "activado" : "desactivado");
