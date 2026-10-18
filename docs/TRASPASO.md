@@ -40,4 +40,4 @@ Pega este archivo (o su enlace) al empezar una sesión nueva con Claude.
 
 ## Próximo paso
 
-Definir con el autor el primer comportamiento: probablemente ocultar y mostrar un elemento (como el Modo 2 del mod CLEO) o mover uno (el dinero es el más sencillo: `CHud::DrawMoney` / posición verificada en `0x58F5FC` y `0x58F5DC`).
+Definir con el autor el primer comportamiento: probablemente ocultar y mostrar un elemento (como el Modo 2 del mod CLEO) o mover uno (el dinero es el más sencillo: punteros de posición verificados en `0x58F5FC` y `0x58F5DC`).
