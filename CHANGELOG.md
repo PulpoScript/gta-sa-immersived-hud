@@ -4,7 +4,15 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). A
 
 ## [Sin publicar]
 
-### 0.1.0-dev.10 — Contorno más fino en la hora y el dinero (sin probar)
+### 0.1.0-dev.11 — Volcado de DrawBarChart (sin probar)
+
+- F10 añade un volcado en hexadecimal de `0x728640`–`0x728A40` para localizar el grosor del borde de las barras.
+
+### 0.1.0-dev.10 — Contorno más fino en la hora y el dinero (probado en parte)
+
+- ✅ Al desactivar, todos los punteros y el contorno vuelven a su valor de fábrica.
+- ✅ `push 2; call CFont::SetEdge` aparece una sola vez en la hora (`0x58EB70`) y en el dinero (`0x58F58D`).
+- ❌ En `DrawBarChart` el 2,0 del borde no está como constante en memoria.
 
 - Con F11, el contorno de la hora y el dinero pasa de 2 a 1 (`CFont::SetEdge`, entero: no hay valores intermedios). Se busca `push 2; call 0x719590` en el código de cada uno y solo se cambia si aparece una vez.
 - F10 indica dónde está ese contorno y busca en `CSprite2d::DrawBarChart` (`0x728640`) el grosor del borde de las barras (2 unidades, compartido con todas las barras del juego). Las barras no se cambian todavía.

@@ -1,6 +1,6 @@
 // #####################################################################
 //  Immersived HUD — plugin ASI para GTA San Andreas PC 1.0 US
-//  Versión: 0.1.0-dev.10 — contorno más fino en la hora y el dinero
+//  Versión: 0.1.0-dev.11 — volcado de DrawBarChart para el borde de las barras
 //  Requiere: plugin-sdk (Plugin_SA) y un cargador de ASI.
 //  Repositorio: https://github.com/PulpoScript/gta-sa-immersived-hud
 // #####################################################################
@@ -15,7 +15,8 @@
 //         las direcciones candidatas a posición del HUD y una búsqueda de
 //         instrucciones de float en el código de la hora, el icono, la
 //         munición, las estrellas, el dinero, las barras y DrawBarChart,
-//         y dónde está el contorno de la hora y el dinero (solo lectura).
+//         dónde está el contorno de la hora y el dinero, y un volcado en
+//         hexadecimal de DrawBarChart (solo lectura).
 //
 //  TÉCNICA (la de WidescreenFix)
 //    Cada coordenada se lee con una instrucción "fmul [puntero]". No se
@@ -34,7 +35,7 @@ using namespace plugin;
 // =====================================================================
 //  CONFIGURACIÓN
 // =====================================================================
-static const char* VERSION = "0.1.0-dev.10";
+static const char* VERSION = "0.1.0-dev.11";
 static const int   TECLA_ACTIVAR = VK_F11;
 static const int   TECLA_DIAGNOSTICO = VK_F10;
 
@@ -93,6 +94,10 @@ static const Rango BUSQUEDAS[] = {
     { "dibujo del icono",  0x58D840, 0x58D980 },  // alrededor de las escalas del dibujo del icono
     { "DrawBarChart",      0x728640, 0x728900 },  // CSprite2d::DrawBarChart: borde negro de las barras
 };
+
+// ---- Rango a volcar en hexadecimal: CSprite2d::DrawBarChart ----
+static const unsigned int VOLCADO_INICIO = 0x728640;
+static const unsigned int VOLCADO_FIN    = 0x728A40;
 
 // =====================================================================
 //  LECTURA SEGURA
@@ -344,6 +349,19 @@ static bool EscribirDiagnostico() {
         fprintf(f, "%-8s encontrados: %d", c.nombre, encontrados);
         if (dir) fprintf(f, "  valor en 0x%06X", dir);
         fprintf(f, "\n");
+    }
+
+    // ---- Volcado de CSprite2d::DrawBarChart (para desensamblar fuera) ----
+    fprintf(f, "\nVolcado 0x%06X-0x%06X (DrawBarChart)\n\n", VOLCADO_INICIO, VOLCADO_FIN);
+    if (SePuedeLeer(VOLCADO_INICIO, VOLCADO_FIN - VOLCADO_INICIO)) {
+        for (unsigned int dir = VOLCADO_INICIO; dir < VOLCADO_FIN; dir += 16) {
+            const unsigned char* b = reinterpret_cast<const unsigned char*>(dir);
+            fprintf(f, "%06X:", dir);
+            for (int i = 0; i < 16; i++) fprintf(f, " %02X", b[i]);
+            fprintf(f, "\n");
+        }
+    } else {
+        fprintf(f, "no se puede leer el rango\n");
     }
 
     fclose(f);
