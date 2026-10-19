@@ -4,7 +4,15 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). A
 
 ## [Sin publicar]
 
-### 0.2.0-dev.3 — Marco bajo los iconos y diagnóstico de mods del radar (sin probar)
+### 0.2.0-dev.4 — Diagnóstico de la "N" del radar (sin probar)
+
+- F10 vuelca el inicio de `CRadar::DrawBlips` (`0x588050`, donde se dibuja la "N") y lista todas las llamadas a `LimitRadarPoint` entre `0x580000` y `0x590000`, para saber qué iconos pasan por el recorte rectangular.
+
+### 0.2.0-dev.3 — Marco bajo los iconos (probado)
+
+- ✅ El marco ya no tapa la "N".
+- F10: `LimitRadarPoint` tenía un enganche desactivado (salta a un trampolín en `0x401EC5`, dentro del ejecutable, que ejecuta la instrucción original). El salto final de `CHud::DrawRadar` va a **CLEO+** (`CLEO+.cleo`), que intercepta el dibujo de los iconos.
+- ❌ La "N" sigue moviéndose en círculo: probablemente `DrawBlips` la coloca con un cálculo propio, sin llamar a `LimitRadarPoint`.
 
 - El marco del radar rectangular se dibuja en lugar del aro (dentro de `CHud::DrawRadar`, antes de los iconos): ya no tapa la "N" ni los demás iconos.
 - F10 indica qué módulo (DLL / ASI) tiene enganchados `LimitRadarPoint` y el salto final de `CHud::DrawRadar` (que en este juego va a otra DLL en vez de a `CRadar::DrawBlips`), con los primeros bytes de su código.

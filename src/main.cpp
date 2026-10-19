@@ -1,6 +1,6 @@
 // #####################################################################
 //  Immersived HUD — plugin ASI para GTA San Andreas PC 1.0 US
-//  Versión: 0.2.0-dev.3 — marco del radar bajo los iconos y diagnóstico de mods del radar
+//  Versión: 0.2.0-dev.4 — diagnóstico de la "N" del radar (F10)
 //  Requiere: plugin-sdk (Plugin_SA) y un cargador de ASI.
 //  Repositorio: https://github.com/PulpoScript/gta-sa-immersived-hud
 // #####################################################################
@@ -57,7 +57,7 @@ using namespace plugin;
 // =====================================================================
 //  CONFIGURACIÓN
 // =====================================================================
-static const char* VERSION = "0.2.0-dev.3";
+static const char* VERSION = "0.2.0-dev.4";
 static const int   TECLA_ACTIVAR = VK_F11;
 static const int   TECLA_DIAGNOSTICO = VK_F10;
 static const int   TECLA_CONSULTA = VK_OEM_PERIOD;   // "." (no la del teclado numérico)
@@ -154,11 +154,7 @@ static const Rango BUSQUEDAS[] = {
 
 // ---- Rangos a volcar en hexadecimal (para desensamblar fuera de la sesión) ----
 static const Rango VOLCADOS[] = {
-    { "CRadar::LimitRadarPoint",                  0x5832F0, 0x583350 },
-    { "CRadar::TransformRadarPointToScreenSpace", 0x583480, 0x583530 },
-    { "CRadar::ClipRadarPoly",                    0x585040, 0x5853D0 },
-    { "CRadar::DrawRadarMask (inicio)",           0x585700, 0x585720 },
-    { "CHud::DrawRadar",                          0x58A330, 0x58AA50 },
+    { "CRadar::DrawBlips (inicio, la N)",         0x588050, 0x588400 },
 };
 
 // =====================================================================
@@ -777,6 +773,7 @@ static void DetectarEventos(CPed* ped, unsigned int ahora) {
 //  DIAGNÓSTICO
 // =====================================================================
 static void DiagnosticoRadar(FILE* f);   // definida en FORMA DEL RADAR
+static const unsigned int RADAR_LIMITE_PUBLICO = 0x5832F0;   // CRadar::LimitRadarPoint
 
 // Escribe el archivo junto a gta_sa.exe. Devuelve true si se pudo.
 static bool EscribirDiagnostico() {
@@ -915,6 +912,20 @@ static bool EscribirDiagnostico() {
 
     // ---- Radar: qué módulo tiene enganchadas sus funciones ----
     DiagnosticoRadar(f);
+
+    // ---- Llamadas a CRadar::LimitRadarPoint (E8 rel32) en el código del radar y el HUD ----
+    fprintf(f, "\nLlamadas a LimitRadarPoint (0x5832F0) entre 0x580000 y 0x590000:\n");
+    if (SePuedeLeer(0x580000, 0x10000)) {
+        int total = 0;
+        for (unsigned int dir = 0x580000; dir < 0x590000 - 5; dir++) {
+            const unsigned char* c = reinterpret_cast<const unsigned char*>(dir);
+            if (c[0] != 0xE8) continue;
+            if (dir + 5 + *reinterpret_cast<const int*>(c + 1) != RADAR_LIMITE_PUBLICO) continue;
+            fprintf(f, "  0x%06X\n", dir);
+            total++;
+        }
+        fprintf(f, "  total: %d\n", total);
+    }
 
     // ---- Volcados en hexadecimal (radar) ----
     for (const Rango& r : VOLCADOS) {
