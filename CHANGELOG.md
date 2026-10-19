@@ -4,6 +4,19 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). A
 
 ## [Sin publicar]
 
+### 0.2.0-dev.2 — Forma del radar en el menú F9 (sin probar)
+
+- Nueva opción **"Forma del radar"** en el menú F9: Redondo (por defecto, sin cambios), Cuadrado, Rectangular 3:2 y Rectangular 16:9. Se puede cambiar en pleno juego; F11 apagado vuelve al redondo de fábrica.
+- El rectángulo se ensancha hacia la derecha con el mismo zoom: el mapa no se deforma y se ve más terreno a los lados. Marco negro propio, sin aro redondo.
+- Técnica (desensamblado del volcado de dev.1):
+  - `TransformRadarPointToScreenSpace`: se redirige solo la constante 40 (operando `0x5834D4`) a `40 + 47·(ancho − 1)`.
+  - `ClipRadarPoly` (`0x585040`): sustituida por un recorte propio a ±ancho × ±1 (Sutherland-Hodgman).
+  - `LimitRadarPoint` (`0x5832F0`): ya la engancha otro mod (empieza con `jmp`); se encadena: en el mapa del menú se llama a la anterior y en el radar los iconos van al borde del rectángulo.
+  - `DrawRadarMask` (`0x585700`): `ret` (empieza con `55`).
+  - Aro: las 4 llamadas a `CSprite2d::Draw` (`0x728350`) en `0x58A823`, `0x58A8CD`, `0x58A977` y `0x58AA25` van a una función vacía compatible (`__fastcall`, limpia 2 argumentos).
+- Todo se comprueba antes de escribir; si algo no coincide, el radar se queda redondo.
+- Sin cambiar: el aro giratorio de los aviones sigue siendo redondo.
+
 ### 0.2.0-dev.1 — Radar rectangular, paso 1: volcado (sin probar)
 
 - F10 vuelca en hexadecimal el código de `CRadar::LimitRadarPoint`, `TransformRadarPointToScreenSpace`, `ClipRadarPoly`, el inicio de `DrawRadarMask` y `CHud::DrawRadar`, para desensamblarlo y localizar las constantes y llamadas exactas antes de escribir nada. Solo lectura; el radar no cambia.

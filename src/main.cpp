@@ -1,6 +1,6 @@
 // #####################################################################
 //  Immersived HUD — plugin ASI para GTA San Andreas PC 1.0 US
-//  Versión: 0.2.0-dev.1 — radar rectangular, paso 1: volcado del código del radar (F10)
+//  Versión: 0.2.0-dev.2 — forma del radar: redondo, cuadrado o rectangular (menú F9)
 //  Requiere: plugin-sdk (Plugin_SA) y un cargador de ASI.
 //  Repositorio: https://github.com/PulpoScript/gta-sa-immersived-hud
 // #####################################################################
@@ -50,13 +50,14 @@
 #include "CStats.h"
 #include <cstdio>
 #include <cstring>
+#include <cmath>
 
 using namespace plugin;
 
 // =====================================================================
 //  CONFIGURACIÓN
 // =====================================================================
-static const char* VERSION = "0.2.0-dev.1";
+static const char* VERSION = "0.2.0-dev.2";
 static const int   TECLA_ACTIVAR = VK_F11;
 static const int   TECLA_DIAGNOSTICO = VK_F10;
 static const int   TECLA_CONSULTA = VK_OEM_PERIOD;   // "." (no la del teclado numérico)
@@ -68,6 +69,7 @@ static const unsigned int PULSACION_LARGA = 800;   // ms para que "." muestre to
 //  AJUSTES (se cambian con el menú F9 y se guardan en ImmersivedHud.ini)
 // =====================================================================
 enum Modo { MODO_DINAMICO = 0, MODO_SIEMPRE = 1, MODO_NUNCA = 2 };
+enum FormaRadar { RADAR_REDONDO = 0, RADAR_CUADRADO = 1, RADAR_3_2 = 2, RADAR_16_9 = 3 };
 
 struct Ajustes {
     int montaje;            // 1 = montaje compacto, 0 = posiciones de fábrica
@@ -78,6 +80,7 @@ struct Ajustes {
     int radarVehiculo, radarEsprintar, radarEstrellas, radarObjetivo, radarDestino;
     int modoResistencia, msResistencia;   // barra de resistencia
     int bloquearCJ;         // 1 = CJ no se mueve con el menú F9 abierto
+    int formaRadar;         // FormaRadar
 };
 
 static const Ajustes AJUSTES_FABRICA = {
@@ -88,6 +91,7 @@ static const Ajustes AJUSTES_FABRICA = {
     1, 1, 1, 1, 1,
     MODO_DINAMICO, 3000,
     1,
+    0,
 };
 
 static Ajustes cfg = AJUSTES_FABRICA;
@@ -1035,12 +1039,212 @@ static void DibujarResistencia(unsigned int ahora) {
 }
 
 // =====================================================================
+//  FORMA DEL RADAR (redondo / cuadrado / rectangular)
+//  Desensamblado del volcado de dev.1 (1.0 US, con WidescreenFix):
+//  - TransformRadarPointToScreenSpace (0x583480): x = 47·s + 40·s +
+//    47·s·p.x. Se redirige solo la constante 40 (operando 0x5834D4) a
+//    40 + 47·(ancho − 1): el radar se ensancha hacia la derecha con el
+//    mismo zoom (no se deforma). La función no se sustituye: quien la
+//    llama espera EDX intacto (gta-reversed).
+//  - ClipRadarPoly (0x585040) recorta el mapa a ±1 con valores dentro de
+//    las instrucciones: se sustituye entera (jmp) por un recorte propio a
+//    ±ancho × ±1. La original ya cambia EDX y ECX, así que es seguro.
+//  - LimitRadarPoint (0x5832F0) lleva los iconos lejanos al círculo. En
+//    este ejecutable ya la engancha otro mod (empieza con jmp): se
+//    encadena. En el mapa del menú se llama a la anterior; en el radar se
+//    llevan al borde del rectángulo.
+//  - DrawRadarMask (0x585700, empieza con 55 = push ebp): ret, sin
+//    máscara redonda.
+//  - Aro: 4 llamadas thiscall a CSprite2d::Draw (0x728350) se redirigen
+//    a una función vacía que limpia la pila igual (__fastcall, 2 args).
+//    El marco rectangular lo dibuja el plugin.
+//  Todo se comprueba antes de escribir y se deshace al volver a redondo.
+// =====================================================================
+static const unsigned int RADAR_TRANSFORMAR = 0x583480;
+static const unsigned int OPERANDO_40       = 0x5834D4;   // fmul [40.0]
+static const unsigned int OPERANDO_ESCALA_X = 0x5834BC;   // fmul [escala X de WidescreenFix]
+static const unsigned int OPERANDO_ESCALA_Y = 0x5834EE;   // fld  [escala Y de WidescreenFix]
+static const unsigned int RADAR_RECORTE     = 0x585040;   // CRadar::ClipRadarPoly
+static const unsigned int RADAR_LIMITE      = 0x5832F0;   // CRadar::LimitRadarPoint
+static const unsigned int RADAR_MASCARA     = 0x585700;   // CRadar::DrawRadarMask
+static const unsigned int SPRITE_DRAW       = 0x728350;   // CSprite2d::Draw(CRect const&, CRGBA const&)
+static const unsigned int LLAMADAS_ARO[4]   = { 0x58A823, 0x58A8CD, 0x58A977, 0x58AA25 };
+static const unsigned int DIBUJANDO_MAPA    = 0xBA67A1;   // FrontEndMenuManager.m_bDrawRadarOrMap
+
+static float radarAncho = 1.0f;          // semiancho en unidades del radar (alto = 1)
+static float radarConstante40 = 40.0f;   // valor propio para el operando 0x5834D4
+static unsigned int radar40Original = 0;
+static bool radarAplicado = false;
+static bool radarDibujado = false;       // el mapa del radar se dibujó en este frame
+
+typedef float (__cdecl *FuncLimite)(CVector2D&);
+static FuncLimite limiteAnterior = nullptr;      // la del otro mod o un trampolín a la original
+static unsigned char limiteBytes[5], recorteBytes[5], aroBytes[4][4];
+static unsigned char* trampolin = nullptr;
+
+static bool DibujandoMapa() { return *reinterpret_cast<const unsigned char*>(DIBUJANDO_MAPA) != 0; }
+
+// ---- Recorte de un polígono convexo de 4 vértices a [-ancho, ancho] × [-1, 1] (Sutherland-Hodgman) ----
+static int __cdecl RecorteRectangular(CVector2D* salida, const CVector2D* entrada) {
+    if (!DibujandoMapa()) radarDibujado = true;
+    float limX = DibujandoMapa() ? 1.0f : radarAncho;
+    CVector2D a[16], b[16];
+    int n = 4;
+    for (int i = 0; i < 4; i++) a[i] = entrada[i];
+    for (int lado = 0; lado < 4; lado++) {
+        int m = 0;
+        for (int i = 0; i < n; i++) {
+            const CVector2D& p = a[i];
+            const CVector2D& q = a[(i + 1) % n];
+            float dp, dq;   // distancia con signo al lado (>= 0 = dentro)
+            switch (lado) {
+                case 0:  dp = limX - p.x; dq = limX - q.x; break;
+                case 1:  dp = p.x + limX; dq = q.x + limX; break;
+                case 2:  dp = 1.0f - p.y; dq = 1.0f - q.y; break;
+                default: dp = p.y + 1.0f; dq = q.y + 1.0f; break;
+            }
+            if (dp >= 0.0f) b[m++] = p;
+            if ((dp >= 0.0f) != (dq >= 0.0f)) {
+                float t = dp / (dp - dq);
+                b[m++] = CVector2D(p.x + (q.x - p.x) * t, p.y + (q.y - p.y) * t);
+            }
+        }
+        n = m;
+        for (int i = 0; i < n; i++) a[i] = b[i];
+        if (n == 0) break;
+    }
+    if (n > 8) n = 8;                       // quien llama reserva 8 vértices
+    for (int i = 0; i < n; i++) salida[i] = a[i];
+    return n;
+}
+
+// ---- Iconos lejanos al borde del rectángulo (en el mapa del menú, la anterior) ----
+static float __cdecl LimiteRectangular(CVector2D& p) {
+    if (DibujandoMapa() || !radarAplicado) return limiteAnterior(p);
+    float magnitud = sqrtf(p.x * p.x + p.y * p.y);
+    float fx = fabsf(p.x) / radarAncho, fy = fabsf(p.y);
+    float f = fx > fy ? fx : fy;
+    if (f > 1.0f) { p.x /= f; p.y /= f; }
+    return magnitud;
+}
+
+// ---- Sustituto vacío de CSprite2d::Draw (thiscall con 2 argumentos) ----
+static void __fastcall SinAro(void*, void*, const void*, const void*) {}
+
+static void EscribirSalto(unsigned int desde, const void* hasta) {
+    unsigned char salto[5];
+    salto[0] = 0xE9;
+    *reinterpret_cast<int*>(salto + 1) = reinterpret_cast<int>(hasta) - static_cast<int>(desde + 5);
+    EscribirBytes(desde, salto, 5);
+}
+
+// Prepara 'limiteAnterior' según cómo empiece LimitRadarPoint. Devuelve false si no se reconoce.
+static bool PrepararLimite() {
+    const unsigned char* f = reinterpret_cast<const unsigned char*>(RADAR_LIMITE);
+    memcpy(limiteBytes, f, 5);
+    if (f[0] == 0xE9) {                                         // ya enganchada: se encadena
+        unsigned int destino = RADAR_LIMITE + 5 + *reinterpret_cast<const int*>(f + 1);
+        limiteAnterior = reinterpret_cast<FuncLimite>(destino);
+        return true;
+    }
+    if (f[0] == 0xA0) {                                         // original: mov al, [moffs] (5 bytes)
+        if (!trampolin)
+            trampolin = static_cast<unsigned char*>(VirtualAlloc(nullptr, 16, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE));
+        if (!trampolin) return false;
+        memcpy(trampolin, f, 5);
+        trampolin[5] = 0xE9;
+        *reinterpret_cast<int*>(trampolin + 6) = static_cast<int>(RADAR_LIMITE + 5) - reinterpret_cast<int>(trampolin + 10);
+        limiteAnterior = reinterpret_cast<FuncLimite>(trampolin);
+        return true;
+    }
+    return false;
+}
+
+static bool ComprobarRadar() {
+    if (!SePuedeLeer(RADAR_TRANSFORMAR, 0xA0) || !SePuedeLeer(RADAR_RECORTE, 8) || !SePuedeLeer(RADAR_MASCARA, 1)) return false;
+    const unsigned char* op40 = reinterpret_cast<const unsigned char*>(OPERANDO_40 - 2);
+    if (op40[0] != 0xD8 || op40[1] != 0x0D) return false;
+    unsigned int p40 = *reinterpret_cast<const unsigned int*>(OPERANDO_40);
+    if (!SePuedeLeer(p40, 4) || *reinterpret_cast<const float*>(p40) != 40.0f) return false;
+    static const unsigned char INICIO_RECORTE[6] = { 0x55, 0x8B, 0xEC, 0x83, 0xE4, 0xF8 };
+    if (memcmp(reinterpret_cast<const void*>(RADAR_RECORTE), INICIO_RECORTE, 6) != 0) return false;
+    if (*reinterpret_cast<const unsigned char*>(RADAR_MASCARA) != 0x55) return false;
+    for (unsigned int llamada : LLAMADAS_ARO) {
+        const unsigned char* c = reinterpret_cast<const unsigned char*>(llamada);
+        if (c[0] != 0xE8) return false;
+        if (llamada + 5 + *reinterpret_cast<const int*>(c + 1) != SPRITE_DRAW) return false;
+    }
+    radar40Original = p40;
+    return true;
+}
+
+static int radarEstado = 0;   // 0 = sin comprobar, 1 = se puede, -1 = no se reconoce (no se toca)
+
+static void AplicarFormaRadar(int forma) {
+    static const float ANCHOS[] = { 1.0f, 1.0f, 1.5f, 16.0f / 9.0f };
+    if (forma == RADAR_REDONDO) {
+        if (!radarAplicado) return;
+        // ---- Deshacer (solo lo que sigue siendo nuestro) ----
+        if (*reinterpret_cast<const unsigned int*>(OPERANDO_40) == reinterpret_cast<unsigned int>(&radarConstante40))
+            EscribirPuntero(OPERANDO_40, radar40Original);
+        if (*reinterpret_cast<const unsigned char*>(RADAR_RECORTE) == 0xE9) EscribirBytes(RADAR_RECORTE, recorteBytes, 5);
+        if (*reinterpret_cast<const unsigned char*>(RADAR_LIMITE) == 0xE9) EscribirBytes(RADAR_LIMITE, limiteBytes, 5);
+        if (*reinterpret_cast<const unsigned char*>(RADAR_MASCARA) == 0xC3) EscribirByte(RADAR_MASCARA, 0x55);
+        for (int i = 0; i < 4; i++) EscribirBytes(LLAMADAS_ARO[i] + 1, aroBytes[i], 4);
+        radarAplicado = false;
+        return;
+    }
+
+    radarAncho = ANCHOS[forma];
+    radarConstante40 = 40.0f + 47.0f * (radarAncho - 1.0f);
+    if (radarAplicado) return;
+
+    if (radarEstado == 0) radarEstado = (ComprobarRadar() && PrepararLimite()) ? 1 : -1;
+    if (radarEstado != 1) return;
+
+    // ---- Aplicar ----
+    memcpy(recorteBytes, reinterpret_cast<const void*>(RADAR_RECORTE), 5);
+    for (int i = 0; i < 4; i++) memcpy(aroBytes[i], reinterpret_cast<const void*>(LLAMADAS_ARO[i] + 1), 4);
+    EscribirPuntero(OPERANDO_40, reinterpret_cast<unsigned int>(&radarConstante40));
+    EscribirSalto(RADAR_RECORTE, reinterpret_cast<const void*>(&RecorteRectangular));
+    EscribirSalto(RADAR_LIMITE, reinterpret_cast<const void*>(&LimiteRectangular));
+    EscribirByte(RADAR_MASCARA, 0xC3);
+    for (unsigned int llamada : LLAMADAS_ARO) {
+        int rel = reinterpret_cast<int>(&SinAro) - static_cast<int>(llamada + 5);
+        EscribirBytes(llamada + 1, reinterpret_cast<const unsigned char*>(&rel), 4);
+    }
+    radarAplicado = true;
+}
+
+// ---- Marco del radar rectangular (mismas cuentas que TransformRadarPointToScreenSpace) ----
+static void DibujarMarcoRadar() {
+    bool dibujado = radarDibujado;
+    radarDibujado = false;
+    if (!radarAplicado || !dibujado) return;
+
+    float ex, ey;
+    if (!LeerEscala(OPERANDO_ESCALA_X, ex) || !LeerEscala(OPERANDO_ESCALA_Y, ey)) return;
+    float sx = SCREEN_WIDTH * ex, sy = SCREEN_HEIGHT * ey;
+
+    float izquierda = 40.0f * sx;                       // el borde izquierdo no se mueve
+    float derecha   = izquierda + 94.0f * sx * radarAncho;
+    float arriba    = SCREEN_HEIGHT - 104.0f * sy;
+    float abajo     = SCREEN_HEIGHT - 28.0f * sy;
+    float g = 2.0f * sy;                                // grosor del marco
+    CRGBA negro(0, 0, 0, 255);
+    CSprite2d::DrawRect(CRect(izquierda - g, arriba - g, derecha + g, arriba), negro);
+    CSprite2d::DrawRect(CRect(izquierda - g, abajo, derecha + g, abajo + g), negro);
+    CSprite2d::DrawRect(CRect(izquierda - g, arriba, izquierda, abajo), negro);
+    CSprite2d::DrawRect(CRect(derecha, arriba, derecha + g, abajo), negro);
+}
+
+// =====================================================================
 //  MENÚ DE DEPURACIÓN (F9) — temporal, se quitará en la versión final
 //  Cada opción apunta a un campo de 'cfg'. Los cambios se guardan al
 //  momento en ImmersivedHud.ini (junto a gta_sa.exe) y se cargan al
 //  arrancar. Texto sin acentos: la fuente del juego no los tiene.
 // =====================================================================
-enum TipoOpcion { OPC_SINO, OPC_MODO, OPC_SEGUNDOS, OPC_PUNTOS, OPC_ACCION, OPC_TITULO };
+enum TipoOpcion { OPC_SINO, OPC_MODO, OPC_SEGUNDOS, OPC_PUNTOS, OPC_FORMA, OPC_ACCION, OPC_TITULO };
 
 struct Opcion {
     const char* texto;
@@ -1071,6 +1275,8 @@ static const Opcion OPCIONES[] = {
     { "Barras fijas con salud <",   "SaludBaja",      OPC_PUNTOS,   &cfg.saludBaja, 0, 200, 5 },
     { "Resistencia",                "ModoResistencia",OPC_MODO,     &cfg.modoResistencia, 0, 2, 1 },
     { "Resistencia (al llenarse)",  "MsResistencia",  OPC_SEGUNDOS, &cfg.msResistencia, 0, 60000, 500 },
+    { "RADAR",                      nullptr,          OPC_TITULO,   nullptr, 0, 0, 0 },
+    { "Forma del radar",            "FormaRadar",     OPC_FORMA,    &cfg.formaRadar, 0, 3, 1 },
     { "RADAR VISIBLE CON",          nullptr,          OPC_TITULO,   nullptr, 0, 0, 0 },
     { "Vehiculo",                   "RadarVehiculo",  OPC_SINO,     &cfg.radarVehiculo, 0, 1, 1 },
     { "Esprintar",                  "RadarEsprintar", OPC_SINO,     &cfg.radarEsprintar, 0, 1, 1 },
@@ -1122,6 +1328,11 @@ static void TextoValor(const Opcion& o, char* texto) {
         case OPC_MODO:     strcpy(texto, MODOS[*o.valor]); break;
         case OPC_SEGUNDOS: sprintf(texto, "%.1f s", *o.valor / 1000.0f); break;
         case OPC_PUNTOS:   sprintf(texto, "%d", *o.valor); break;
+        case OPC_FORMA: {
+            static const char* FORMAS[] = { "Redondo", "Cuadrado", "Rect. 3:2", "Rect. 16:9" };
+            strcpy(texto, FORMAS[*o.valor]);
+            break;
+        }
         default: break;
     }
 }
@@ -1179,7 +1390,7 @@ static void ProcesarMenu() {
         GuardarAjustes();
     } else if (cambio != 0 && o.valor) {
         int v = *o.valor + cambio * o.paso;
-        if (o.tipo == OPC_SINO || o.tipo == OPC_MODO) {
+        if (o.tipo == OPC_SINO || o.tipo == OPC_MODO || o.tipo == OPC_FORMA) {
             if (v < o.minimo) v = o.maximo;           // da la vuelta
             if (v > o.maximo) v = o.minimo;
         } else {
@@ -1339,6 +1550,9 @@ public:
             LeerResistencia(ped, ahora);
             activoGlobal = activo;
 
+            // ---- Forma del radar (menú F9); apagado = redondo de fábrica ----
+            AplicarFormaRadar(activo ? cfg.formaRadar : RADAR_REDONDO);
+
             if (!activo) {
                 puntoAntes = puntoLargo = false;
                 TodoDeFabrica();
@@ -1392,6 +1606,7 @@ public:
         Events::drawHudEvent.after += [] {
             QuitarBordes();
             DevolverIndicadores();
+            DibujarMarcoRadar();
             DibujarDiferencia();
             DibujarResistencia(CTimer::m_snTimeInMilliseconds);
             DibujarMenu();
