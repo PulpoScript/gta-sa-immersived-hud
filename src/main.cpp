@@ -1,6 +1,6 @@
 // #####################################################################
 //  Immersived HUD — plugin ASI para GTA San Andreas PC 1.0 US
-//  Versión: 0.1.0-dev.18 — radar visible con objetivo de misión o destino
+//  Versión: 0.1.0-dev.19 — menú de depuración (F9) y radar sin espera al quitar el destino
 //  Requiere: plugin-sdk (Plugin_SA) y un cargador de ASI.
 //  Repositorio: https://github.com/PulpoScript/gta-sa-immersived-hud
 // #####################################################################
@@ -20,6 +20,9 @@
 //         de fábrica.
 //    F10  Escribe ImmersivedHud.log junto a gta_sa.exe (diagnóstico,
 //         solo lectura).
+//    F9   Menú de depuración (temporal, se quitará en la versión final):
+//         flechas arriba / abajo para elegir, izquierda / derecha para
+//         cambiar, Intro para "restaurar". Se guarda en ImmersivedHud.ini.
 //
 //  TÉCNICA
 //    Posición y tamaño: cada coordenada se lee con "fmul [puntero]". No
@@ -43,6 +46,7 @@
 #include "CReplay.h"
 #include "CWeapon.h"
 #include "CRadar.h"
+#include "CSprite2d.h"
 #include <cstdio>
 #include <cstring>
 
@@ -51,16 +55,37 @@ using namespace plugin;
 // =====================================================================
 //  CONFIGURACIÓN
 // =====================================================================
-static const char* VERSION = "0.1.0-dev.18";
+static const char* VERSION = "0.1.0-dev.19";
 static const int   TECLA_ACTIVAR = VK_F11;
 static const int   TECLA_DIAGNOSTICO = VK_F10;
 static const int   TECLA_CONSULTA = VK_OEM_PERIOD;   // "." (no la del teclado numérico)
 
-static const unsigned int TIEMPO_VISIBLE     = 5000;  // ms: dinero, arma, barras y hora
-static const unsigned int TIEMPO_RADAR       = 8000;  // ms tras el último motivo
-static const unsigned int TIEMPO_TRAS_SOLTAR = 3000;  // ms: al activar y al soltar "." larga
-static const unsigned int PULSACION_LARGA    = 800;   // ms para que "." muestre todo
-static const float        SALUD_BAJA         = 25.0f; // puntos: por debajo, barras fijas
+static const int   TECLA_MENU = VK_F9;
+static const unsigned int PULSACION_LARGA = 800;   // ms para que "." muestre todo
+
+// =====================================================================
+//  AJUSTES (se cambian con el menú F9 y se guardan en ImmersivedHud.ini)
+// =====================================================================
+enum Modo { MODO_DINAMICO = 0, MODO_SIEMPRE = 1, MODO_NUNCA = 2 };
+
+struct Ajustes {
+    int montaje;            // 1 = montaje compacto, 0 = posiciones de fábrica
+    int diferencia;         // 1 = mostrar +250 / -540 bajo el dinero
+    int modoDinero, modoArma, modoBarras, modoHora, modoRadar;   // Modo
+    int msDinero, msArma, msBarras, msHora, msRadar, msTodo;     // ms visibles
+    int saludBaja;          // puntos: por debajo, barras fijas
+    int radarVehiculo, radarEsprintar, radarEstrellas, radarObjetivo, radarDestino;
+};
+
+static const Ajustes AJUSTES_FABRICA = {
+    1, 1,
+    MODO_DINAMICO, MODO_DINAMICO, MODO_DINAMICO, MODO_DINAMICO, MODO_DINAMICO,
+    5000, 5000, 5000, 5000, 8000, 3000,
+    25,
+    1, 1, 1, 1, 1,
+};
+
+static Ajustes cfg = AJUSTES_FABRICA;
 
 // =====================================================================
 //  DIRECCIONES A REVISAR (SIN VERIFICAR)
@@ -580,7 +605,7 @@ static void ActualizarPosiciones(CPed* ped) {
     // ---- Diferencia de dinero (la dibuja el plugin, debajo del dinero) ----
     diferenciaX = colX;
     diferenciaY = y;
-    if (!parcheDinero.aplicado && diferenciaDinero != 0) y += PASO_DINERO;
+    if (cfg.diferencia && !parcheDinero.aplicado && diferenciaDinero != 0) y += PASO_DINERO;
 
     // ---- Blindaje (el juego no lo dibuja con blindaje <= 1) ----
     blindajeX.valor = colX + LARGO_BLINDAJE;
@@ -617,13 +642,22 @@ static void ActualizarPosiciones(CPed* ped) {
 static unsigned int tDinero = 0, tArma = 0, tBarras = 0, tRadar = 0, tHora = 0;
 
 // Deja cada elemento "a 3 s de ocultarse".
-static void MostrarTodo3s(unsigned int ahora) {
-    tDinero = tArma = tBarras = tHora = ahora - (TIEMPO_VISIBLE - TIEMPO_TRAS_SOLTAR);
-    tRadar = ahora - (TIEMPO_RADAR - TIEMPO_TRAS_SOLTAR);
+// Deja 't' de forma que el elemento se vea 'resta' ms más (o su duración, si es menor).
+static void Quedan(unsigned int& t, unsigned int ahora, int duracion, int resta) {
+    int r = resta < duracion ? resta : duracion;
+    t = ahora - static_cast<unsigned int>(duracion - r);
 }
 
-static bool Visible(unsigned int ahora, unsigned int desde, unsigned int duracion) {
-    return ahora - desde < duracion;
+static void MostrarTodo3s(unsigned int ahora) {
+    Quedan(tDinero, ahora, cfg.msDinero, cfg.msTodo);
+    Quedan(tArma,   ahora, cfg.msArma,   cfg.msTodo);
+    Quedan(tBarras, ahora, cfg.msBarras, cfg.msTodo);
+    Quedan(tHora,   ahora, cfg.msHora,   cfg.msTodo);
+    Quedan(tRadar,  ahora, cfg.msRadar,  cfg.msTodo);
+}
+
+static bool Visible(unsigned int ahora, unsigned int desde, int duracion) {
+    return ahora - desde < static_cast<unsigned int>(duracion);
 }
 
 // ---- Valores anteriores para detectar cambios ----
@@ -671,6 +705,9 @@ static int ContarObjetivos(int* destinos) {
     return objetivos;
 }
 
+// Hay un objetivo o destino marcado ahora mismo (sin espera al desaparecer).
+static bool radarPorMarcador = false;
+
 // Detecta los eventos de este frame y reinicia el tiempo de cada elemento.
 static void DetectarEventos(CPed* ped, unsigned int ahora) {
     int dinero = Jugador().m_nMoney;
@@ -693,7 +730,7 @@ static void DetectarEventos(CPed* ped, unsigned int ahora) {
     }
 
     // Cuando el dinero se oculta, la diferencia se olvida (no reaparece con ".").
-    if (!Visible(ahora, tDinero, TIEMPO_VISIBLE)) diferenciaDinero = 0;
+    if (!Visible(ahora, tDinero, cfg.msDinero)) diferenciaDinero = 0;
     if (dinero != dineroAntes) {
         // Se suma mientras el dinero sigue en pantalla.
         diferenciaDinero += dinero - dineroAntes;
@@ -707,14 +744,18 @@ static void DetectarEventos(CPed* ped, unsigned int ahora) {
         tBarras = ahora;
     }
 
-    // ---- Radar: en vehículo, esprintando, con estrellas, objetivo o destino ----
+    // ---- Radar: motivos con espera (se oculta msRadar después del último) ----
     CWanted* buscado = FindPlayerWanted();
-    int destinos;
-    bool hayObjetivo = ContarObjetivos(&destinos) > 0 || destinos > 0;
-    if (ped->bInVehicle || ped->m_nMoveState == PEDMOVE_SPRINT ||
-        (buscado && buscado->m_nWantedLevel > 0) || hayObjetivo) {
+    if ((cfg.radarVehiculo && ped->bInVehicle) ||
+        (cfg.radarEsprintar && ped->m_nMoveState == PEDMOVE_SPRINT) ||
+        (cfg.radarEstrellas && buscado && buscado->m_nWantedLevel > 0)) {
         tRadar = ahora;
     }
+
+    // ---- Radar: objetivo de misión o destino propio, solo mientras existan ----
+    int destinos;
+    int objetivos = ContarObjetivos(&destinos);
+    radarPorMarcador = (cfg.radarObjetivo && objetivos > 0) || (cfg.radarDestino && destinos > 0);
 }
 
 // =====================================================================
@@ -893,7 +934,7 @@ static bool LeerEscala(unsigned int operando, float& escala) {
 }
 
 static void DibujarDiferencia() {
-    if (!montajeActivo || parcheDinero.aplicado || diferenciaDinero == 0) return;
+    if (!cfg.diferencia || !montajeActivo || parcheDinero.aplicado || diferenciaDinero == 0) return;
     if (CReplay::Mode == 1 || CWeapon::ms_bTakePhoto || FrontEndMenuManager.m_bMenuActive) return;
     if (TheCamera.m_bWideScreenOn || !FrontEndMenuManager.m_bPrefsShowHud || !CTheScripts::bDisplayHud) return;
 
@@ -921,9 +962,209 @@ static void DibujarDiferencia() {
 }
 
 // =====================================================================
+//  MENÚ DE DEPURACIÓN (F9) — temporal, se quitará en la versión final
+//  Cada opción apunta a un campo de 'cfg'. Los cambios se guardan al
+//  momento en ImmersivedHud.ini (junto a gta_sa.exe) y se cargan al
+//  arrancar. Texto sin acentos: la fuente del juego no los tiene.
+// =====================================================================
+enum TipoOpcion { OPC_SINO, OPC_MODO, OPC_SEGUNDOS, OPC_PUNTOS, OPC_ACCION, OPC_TITULO };
+
+struct Opcion {
+    const char* texto;
+    const char* clave;       // nombre en el .ini
+    TipoOpcion tipo;
+    int* valor;
+    int minimo, maximo, paso;
+};
+
+static const Opcion OPCIONES[] = {
+    { "GENERAL",                    nullptr,          OPC_TITULO,   nullptr, 0, 0, 0 },
+    { "Montaje compacto",           "Montaje",        OPC_SINO,     &cfg.montaje, 0, 1, 1 },
+    { "Diferencia de dinero",       "Diferencia",     OPC_SINO,     &cfg.diferencia, 0, 1, 1 },
+    { "ELEMENTOS",                  nullptr,          OPC_TITULO,   nullptr, 0, 0, 0 },
+    { "Dinero",                     "ModoDinero",     OPC_MODO,     &cfg.modoDinero, 0, 2, 1 },
+    { "Arma y municion",            "ModoArma",       OPC_MODO,     &cfg.modoArma, 0, 2, 1 },
+    { "Salud y blindaje",           "ModoBarras",     OPC_MODO,     &cfg.modoBarras, 0, 2, 1 },
+    { "Hora",                       "ModoHora",       OPC_MODO,     &cfg.modoHora, 0, 2, 1 },
+    { "Radar",                      "ModoRadar",      OPC_MODO,     &cfg.modoRadar, 0, 2, 1 },
+    { "TIEMPOS",                    nullptr,          OPC_TITULO,   nullptr, 0, 0, 0 },
+    { "Dinero",                     "MsDinero",       OPC_SEGUNDOS, &cfg.msDinero, 500, 60000, 500 },
+    { "Arma y municion",            "MsArma",         OPC_SEGUNDOS, &cfg.msArma, 500, 60000, 500 },
+    { "Salud y blindaje",           "MsBarras",       OPC_SEGUNDOS, &cfg.msBarras, 500, 60000, 500 },
+    { "Hora (tecla .)",             "MsHora",         OPC_SEGUNDOS, &cfg.msHora, 500, 60000, 500 },
+    { "Radar tras el ultimo motivo","MsRadar",        OPC_SEGUNDOS, &cfg.msRadar, 0, 60000, 500 },
+    { "Todo (al soltar . / activar)","MsTodo",        OPC_SEGUNDOS, &cfg.msTodo, 500, 60000, 500 },
+    { "Barras fijas con salud <",   "SaludBaja",      OPC_PUNTOS,   &cfg.saludBaja, 0, 200, 5 },
+    { "RADAR VISIBLE CON",          nullptr,          OPC_TITULO,   nullptr, 0, 0, 0 },
+    { "Vehiculo",                   "RadarVehiculo",  OPC_SINO,     &cfg.radarVehiculo, 0, 1, 1 },
+    { "Esprintar",                  "RadarEsprintar", OPC_SINO,     &cfg.radarEsprintar, 0, 1, 1 },
+    { "Estrellas",                  "RadarEstrellas", OPC_SINO,     &cfg.radarEstrellas, 0, 1, 1 },
+    { "Objetivo de mision",         "RadarObjetivo",  OPC_SINO,     &cfg.radarObjetivo, 0, 1, 1 },
+    { "Destino propio (mapa)",      "RadarDestino",   OPC_SINO,     &cfg.radarDestino, 0, 1, 1 },
+    { "",                           nullptr,          OPC_TITULO,   nullptr, 0, 0, 0 },
+    { "Restaurar valores por defecto", nullptr,       OPC_ACCION,   nullptr, 0, 0, 0 },
+};
+static const int NUM_OPCIONES = sizeof(OPCIONES) / sizeof(OPCIONES[0]);
+
+static bool menuAbierto = false;
+static int menuSeleccion = 1;
+
+static void RutaIni(char* ruta) {
+    GetModuleFileNameA(NULL, ruta, MAX_PATH);
+    char* barra = strrchr(ruta, '\\');
+    if (barra) strcpy(barra + 1, "ImmersivedHud.ini");
+    else strcpy(ruta, "ImmersivedHud.ini");
+}
+
+static void CargarAjustes() {
+    char ruta[MAX_PATH];
+    RutaIni(ruta);
+    for (const Opcion& o : OPCIONES) {
+        if (!o.clave) continue;
+        int v = GetPrivateProfileIntA("Ajustes", o.clave, *o.valor, ruta);
+        if (v < o.minimo) v = o.minimo;
+        if (v > o.maximo) v = o.maximo;
+        *o.valor = v;
+    }
+}
+
+static void GuardarAjustes() {
+    char ruta[MAX_PATH], numero[16];
+    RutaIni(ruta);
+    for (const Opcion& o : OPCIONES) {
+        if (!o.clave) continue;
+        sprintf(numero, "%d", *o.valor);
+        WritePrivateProfileStringA("Ajustes", o.clave, numero, ruta);
+    }
+}
+
+static void TextoValor(const Opcion& o, char* texto) {
+    static const char* MODOS[] = { "Dinamico", "Siempre", "Nunca" };
+    texto[0] = '\0';
+    switch (o.tipo) {
+        case OPC_SINO:     strcpy(texto, *o.valor ? "Si" : "No"); break;
+        case OPC_MODO:     strcpy(texto, MODOS[*o.valor]); break;
+        case OPC_SEGUNDOS: sprintf(texto, "%.1f s", *o.valor / 1000.0f); break;
+        case OPC_PUNTOS:   sprintf(texto, "%d", *o.valor); break;
+        default: break;
+    }
+}
+
+// Pulsación nueva de una tecla (no mantenida). 'antes' guarda el estado anterior.
+static bool Pulsada(int tecla, bool& antes) {
+    bool ahora = (GetAsyncKeyState(tecla) & 0x8000) != 0;
+    bool nueva = ahora && !antes;
+    antes = ahora;
+    return nueva;
+}
+
+static void MoverSeleccion(int paso) {
+    for (int i = 0; i < NUM_OPCIONES; i++) {
+        menuSeleccion = (menuSeleccion + paso + NUM_OPCIONES) % NUM_OPCIONES;
+        if (OPCIONES[menuSeleccion].tipo != OPC_TITULO) return;
+    }
+}
+
+static void ProcesarMenu() {
+    static bool f9 = false, arriba = false, abajo = false, izq = false, der = false, intro = false;
+    if (Pulsada(TECLA_MENU, f9)) menuAbierto = !menuAbierto;
+    if (!menuAbierto) {
+        Pulsada(VK_UP, arriba); Pulsada(VK_DOWN, abajo);
+        Pulsada(VK_LEFT, izq); Pulsada(VK_RIGHT, der); Pulsada(VK_RETURN, intro);
+        return;
+    }
+
+    if (Pulsada(VK_UP, arriba))   MoverSeleccion(-1);
+    if (Pulsada(VK_DOWN, abajo))  MoverSeleccion(+1);
+
+    const Opcion& o = OPCIONES[menuSeleccion];
+    int cambio = 0;
+    if (Pulsada(VK_LEFT, izq))  cambio = -1;
+    if (Pulsada(VK_RIGHT, der)) cambio = +1;
+    bool enter = Pulsada(VK_RETURN, intro);
+
+    if (o.tipo == OPC_ACCION && enter) {
+        cfg = AJUSTES_FABRICA;
+        GuardarAjustes();
+    } else if (cambio != 0 && o.valor) {
+        int v = *o.valor + cambio * o.paso;
+        if (o.tipo == OPC_SINO || o.tipo == OPC_MODO) {
+            if (v < o.minimo) v = o.maximo;           // da la vuelta
+            if (v > o.maximo) v = o.minimo;
+        } else {
+            if (v < o.minimo) v = o.minimo;
+            if (v > o.maximo) v = o.maximo;
+        }
+        *o.valor = v;
+        GuardarAjustes();
+    }
+}
+
+static void DibujarMenu() {
+    if (!menuAbierto) return;
+    float ex = SCREEN_WIDTH / 640.0f, ey = SCREEN_HEIGHT / 448.0f;   // escala sin WidescreenFix
+    float esc = ey;                                                    // misma escala en ambos ejes
+    float x = 20.0f * esc, y = 130.0f * ey, alto = 11.0f * ey, ancho = 230.0f * esc;  // debajo del cuadro de ayuda
+    (void)ex;
+
+    CSprite2d::DrawRect(CRect(x - 6.0f * esc, y - 24.0f * ey, x + ancho, y + alto * NUM_OPCIONES + 18.0f * ey),
+                        CRGBA(0, 0, 0, 190));
+
+    CFont::SetBackground(false, false);
+    CFont::SetProportional(true);
+    CFont::SetFontStyle(FONT_SUBTITLES);
+    CFont::SetDropShadowPosition(0);
+    CFont::SetEdge(1);
+    CFont::SetDropColor(CRGBA(0, 0, 0, 255));
+    CFont::SetWrapx(SCREEN_WIDTH);
+    CFont::SetRightJustifyWrap(0.0f);
+
+    // ---- Título ----
+    char titulo[64];
+    sprintf(titulo, "Immersived HUD %s - F9 cerrar", VERSION);
+    CFont::SetScale(0.30f * esc, 0.75f * ey);
+    CFont::SetOrientation(ALIGN_LEFT);
+    CFont::SetColor(CRGBA(255, 200, 80, 255));
+    CFont::PrintString(x, y - 20.0f * ey, titulo);
+
+    CFont::SetScale(0.25f * esc, 0.60f * ey);
+    for (int i = 0; i < NUM_OPCIONES; i++) {
+        const Opcion& o = OPCIONES[i];
+        float fy = y + alto * i;
+        bool sel = (i == menuSeleccion);
+        CRGBA color = o.tipo == OPC_TITULO ? CRGBA(140, 170, 230, 255)
+                    : sel ? CRGBA(255, 255, 255, 255) : CRGBA(180, 180, 180, 255);
+        CFont::SetColor(color);
+        CFont::SetOrientation(ALIGN_LEFT);
+        char linea[96];
+        sprintf(linea, "%s%s", sel ? "> " : "  ", o.texto);
+        CFont::PrintString(x, fy, linea);
+
+        char valor[32];
+        TextoValor(o, valor);
+        if (valor[0]) {
+            CFont::SetOrientation(ALIGN_RIGHT);
+            CFont::PrintString(x + ancho - 10.0f * esc, fy, valor);
+        }
+    }
+
+    CFont::SetOrientation(ALIGN_LEFT);
+    CFont::SetColor(CRGBA(150, 150, 150, 255));
+    CFont::PrintString(x, y + alto * NUM_OPCIONES + 4.0f * ey, "Flechas: elegir / cambiar   Intro: restaurar");
+    CFont::SetEdge(0);
+}
+
+// =====================================================================
 //  PLUGIN
 // =====================================================================
 static bool activo = true;      // el plugin empieza encendido
+
+// Oculto según el modo: dinámico = oculto si no hay motivo; siempre = visible; nunca = oculto.
+static bool Oculto(int modo, bool hayMotivo) {
+    if (modo == MODO_SIEMPRE) return false;
+    if (modo == MODO_NUNCA) return true;
+    return !hayMotivo;
+}
 static bool reinicio = false;   // partida cargada o nueva (Events::reInitGameEvent)
 
 // Deja el juego como de fábrica: posiciones, tamaños y nada oculto.
@@ -936,6 +1177,8 @@ static void TodoDeFabrica() {
 class ImmersivedHud {
 public:
     ImmersivedHud() {
+        CargarAjustes();
+
         // Se ejecuta una vez por frame mientras se juega.
         Events::gameProcessEvent += [] {
             static bool primerFrame = true;
@@ -972,6 +1215,9 @@ public:
             }
             teclaAntes = teclaAhora;
 
+            // ---- Tecla F9: menú de depuración ----
+            ProcesarMenu();
+
             // ---- Tecla F10: diagnóstico (solo lectura) ----
             bool diagAhora = (GetAsyncKeyState(TECLA_DIAGNOSTICO) & 0x8000) != 0;
             if (diagAhora && !diagAntes) {
@@ -998,7 +1244,7 @@ public:
                 if (ahora - tPunto >= PULSACION_LARGA) puntoLargo = true;
             } else if (puntoAntes) {
                 if (puntoLargo) MostrarTodo3s(ahora);   // todo 3 s, la hora incluida
-                else            tHora = ahora;          // la hora 5 s
+                else            tHora = ahora;          // la hora msHora
                 puntoLargo = false;
             }
             puntoAntes = puntoAhora;
@@ -1006,19 +1252,21 @@ public:
             // Mantener: todo visible en el montaje compacto (cada frame "a 3 s de ocultarse")
             if (puntoLargo) MostrarTodo3s(ahora);
 
-            // ---- Estado deseado de cada elemento ----
-            bool saludBaja = ped && ped->m_fHealth < SALUD_BAJA;
-            bool ocultarArma   = !Visible(ahora, tArma, TIEMPO_VISIBLE);
-            bool ocultarBarras = !Visible(ahora, tBarras, TIEMPO_VISIBLE) && !saludBaja;
+            // ---- Estado deseado de cada elemento (modo del menú F9) ----
+            bool saludBaja = ped && ped->m_fHealth < static_cast<float>(cfg.saludBaja);
+            bool ocultarDinero = Oculto(cfg.modoDinero, Visible(ahora, tDinero, cfg.msDinero));
+            bool ocultarArma   = Oculto(cfg.modoArma,   Visible(ahora, tArma, cfg.msArma));
+            bool ocultarBarras = Oculto(cfg.modoBarras, Visible(ahora, tBarras, cfg.msBarras) || saludBaja);
 
-            AplicarMontaje();
-            Poner(parcheDinero, !Visible(ahora, tDinero, TIEMPO_VISIBLE));
+            if (cfg.montaje) AplicarMontaje();
+            else             QuitarMontaje();
+            Poner(parcheDinero, ocultarDinero);
             Poner(parcheIcono, ocultarArma);
             Poner(parcheMunicion, ocultarArma);
             Poner(parcheSalud, ocultarBarras);
             Poner(parcheBlindaje, ocultarBarras);
-            ocultarHora  = !Visible(ahora, tHora, TIEMPO_VISIBLE);
-            ocultarRadar = !Visible(ahora, tRadar, TIEMPO_RADAR);
+            ocultarHora  = Oculto(cfg.modoHora,  Visible(ahora, tHora, cfg.msHora));
+            ocultarRadar = Oculto(cfg.modoRadar, Visible(ahora, tRadar, cfg.msRadar) || radarPorMarcador);
 
             ActualizarPosiciones(ped);
         };
@@ -1037,6 +1285,7 @@ public:
             QuitarBordes();
             DevolverIndicadores();
             DibujarDiferencia();
+            DibujarMenu();
         };
     }
 } immersivedHud;

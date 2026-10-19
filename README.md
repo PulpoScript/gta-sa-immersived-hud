@@ -39,6 +39,7 @@ Necesitas Visual Studio con el compilador **MSVC v143** y [plugin-sdk](https://g
 | . (punto) | Toque corto: la hora 5 s. Mantener 0,8 s: todo el HUD visible con la nueva distribución; al soltar, se oculta a los 3 s |
 | F11 | Apaga / enciende el plugin (empieza encendido). Apagado: HUD de fábrica |
 | F10 | Guarda `ImmersivedHud.log` (diagnóstico, solo lectura) |
+| F9 | Menú de depuración (temporal): modo y tiempo de cada elemento y motivos del radar. Se guarda en `ImmersivedHud.ini` |
 
 ## Compatibilidad
 

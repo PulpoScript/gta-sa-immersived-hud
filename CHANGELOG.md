@@ -4,6 +4,17 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). A
 
 ## [Sin publicar]
 
+### 0.1.0-dev.19 — Menú de depuración y radar sin espera al quitar el destino (sin probar)
+
+- **Corregido:** al quitar el destino del mapa (o terminar el objetivo), el radar se ocultaba 8 s después. Ahora el objetivo de misión y el destino propio cuentan **solo mientras existen**; los demás motivos (vehículo, esprintar, estrellas) mantienen su espera.
+- **Menú de depuración (F9)**, temporal hasta la versión final. Flechas arriba / abajo para elegir, izquierda / derecha para cambiar, Intro para restaurar los valores por defecto.
+  - General: montaje compacto (sí / no) y diferencia de dinero (sí / no).
+  - Modo de cada elemento (dinero, arma, barras, hora, radar): dinámico, siempre o nunca.
+  - Tiempos: dinero, arma, barras, hora, radar tras el último motivo y "todo" (al soltar "." o activar), en pasos de 0,5 s.
+  - Umbral de salud baja (barras fijas), en pasos de 5 puntos.
+  - Motivos del radar: vehículo, esprintar, estrellas, objetivo de misión y destino propio.
+- Los ajustes se guardan al momento en `ImmersivedHud.ini`, junto a `gta_sa.exe`, y se cargan al arrancar.
+
 ### 0.1.0-dev.18 — Radar con objetivo de misión o destino (sin probar)
 
 - El radar también se ve mientras haya un **objetivo de misión** en el radar (marcador sin icono de coche, persona, objeto, punto o zona, visible en el radar y no de corto alcance) o un **destino propio** marcado en el mapa (icono 41). Se oculta 8 s después, como con los demás motivos.
