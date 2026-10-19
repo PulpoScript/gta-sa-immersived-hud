@@ -1,6 +1,6 @@
 // #####################################################################
 //  Immersived HUD — plugin ASI para GTA San Andreas PC 1.0 US
-//  Versión: 0.1.0-dev.15 — HUD dinámico (candidata a 0.1.0)
+//  Versión: 0.1.0-dev.16 — HUD dinámico (candidata a 0.1.0)
 //  Requiere: plugin-sdk (Plugin_SA) y un cargador de ASI.
 //  Repositorio: https://github.com/PulpoScript/gta-sa-immersived-hud
 // #####################################################################
@@ -13,8 +13,8 @@
 //    se recoloca. Las reglas son las del Modo 2 del mod CLEO.
 //
 //  CONTROLES
-//    "."  Toque corto: la hora 5 s. Mantener 0,8 s: todo el HUD en su
-//         posición de fábrica; al soltar, todo visible 3 s.
+//    "."  Toque corto: la hora 5 s. Mantener 0,8 s: todo el HUD visible
+//         (en el montaje compacto); al soltar, se oculta a los 3 s.
 //    F11  Apaga / enciende el plugin (empieza encendido). Apagado: HUD
 //         de fábrica.
 //    F10  Escribe ImmersivedHud.log junto a gta_sa.exe (diagnóstico,
@@ -42,7 +42,7 @@ using namespace plugin;
 // =====================================================================
 //  CONFIGURACIÓN
 // =====================================================================
-static const char* VERSION = "0.1.0-dev.15";
+static const char* VERSION = "0.1.0-dev.16";
 static const int   TECLA_ACTIVAR = VK_F11;
 static const int   TECLA_DIAGNOSTICO = VK_F10;
 static const int   TECLA_CONSULTA = VK_OEM_PERIOD;   // "." (no la del teclado numérico)
@@ -590,8 +590,8 @@ static void ActualizarPosiciones(CPed* ped) {
 //  - Radar: en vehículo, con nivel de búsqueda o esprintando; se oculta
 //    8 s después del último motivo.
 //  - Hora: solo con la tecla "." (toque corto: 5 s).
-//  - Mantener "." 0,8 s: todo el HUD en su posición de fábrica; al
-//    soltar, montaje compacto con todo visible 3 s.
+//  - Mantener "." 0,8 s: todo el HUD visible en el montaje compacto; al
+//    soltar, se oculta a los 3 s.
 //  - Al activar el plugin (o cargar partida): todo visible 3 s.
 //  Los tiempos usan el reloj del juego (se para en pausa).
 // =====================================================================
@@ -878,7 +878,7 @@ public:
                 return;
             }
 
-            // ---- Tecla ".": toque = hora 5 s; mantener 0,8 s = HUD de fábrica ----
+            // ---- Tecla ".": toque = hora 5 s; mantener 0,8 s = todo visible ----
             bool puntoAhora = (GetAsyncKeyState(TECLA_CONSULTA) & 0x8000) != 0;
             if (puntoAhora) {
                 if (!puntoAntes) tPunto = ahora;
@@ -890,10 +890,8 @@ public:
             }
             puntoAntes = puntoAhora;
 
-            if (puntoLargo) {
-                TodoDeFabrica();
-                return;
-            }
+            // Mantener: todo visible en el montaje compacto (cada frame "a 3 s de ocultarse")
+            if (puntoLargo) MostrarTodo3s(ahora);
 
             // ---- Estado deseado de cada elemento ----
             bool saludBaja = ped && ped->m_fHealth < SALUD_BAJA;

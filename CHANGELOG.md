@@ -4,7 +4,14 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). A
 
 ## [Sin publicar]
 
-### 0.1.0-dev.15 — HUD dinámico (candidata a 0.1.0, sin probar)
+### 0.1.0-dev.16 — "." muestra todo con la nueva distribución (sin probar)
+
+- Mantener "." 0,8 s muestra todo el HUD en el montaje compacto (antes, HUD de fábrica). Al soltar, se oculta a los 3 s. Para el HUD de fábrica, F11.
+
+### 0.1.0-dev.15 — HUD dinámico (probado en parte)
+
+- ✅ Compila y funciona en el juego. El autor prefiere que mantener "." muestre la nueva distribución, no la de fábrica.
+
 
 - **Comportamiento** (mismas reglas que el Modo 2 del mod CLEO): dinero 5 s tras un cambio; arma y munición 5 s tras un cambio de ranura, tipo o munición; salud y blindaje 5 s tras un cambio y fijas con salud < 25; radar en vehículo, con nivel de búsqueda o esprintando, y se oculta 8 s después; hora solo con ".".
 - **Tecla "."**: toque corto, hora 5 s; mantener 0,8 s, todo el HUD en su posición de fábrica; al soltar, todo visible 3 s.

@@ -8,7 +8,7 @@ Plugin ASI para **GTA San Andreas PC 1.0 US** que hace el HUD más inmersivo: ca
 
 - Mostrar cada elemento (hora, dinero, barras de salud y blindaje, estrellas, icono de arma) solo cuando pasa algo, y ocultarlo al rato.
 - Colocar esos elementos en otra posición, sin que se solapen.
-- Mostrar todo el HUD en su posición de fábrica manteniendo una tecla.
+- Mostrar todo el HUD manteniendo una tecla.
 
 ## Origen
 
@@ -31,7 +31,7 @@ Necesitas Visual Studio con el compilador **MSVC v143** y [plugin-sdk](https://g
 
 | Tecla | Acción |
 |---|---|
-| . (punto) | Toque corto: la hora 5 s. Mantener 0,8 s: todo el HUD en su posición de fábrica; al soltar, todo visible 3 s |
+| . (punto) | Toque corto: la hora 5 s. Mantener 0,8 s: todo el HUD visible con la nueva distribución; al soltar, se oculta a los 3 s |
 | F11 | Apaga / enciende el plugin (empieza encendido). Apagado: HUD de fábrica |
 | F10 | Guarda `ImmersivedHud.log` (diagnóstico, solo lectura) |
 
