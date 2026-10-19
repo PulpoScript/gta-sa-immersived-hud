@@ -1,6 +1,6 @@
 // #####################################################################
 //  Immersived HUD — plugin ASI para GTA San Andreas PC 1.0 US
-//  Versión: 0.1.0-dev.21 — CJ quieto con el menú F9 abierto
+//  Versión: 0.1.0-dev.22 — el menú F9 cabe en pantalla
 //  Requiere: plugin-sdk (Plugin_SA) y un cargador de ASI.
 //  Repositorio: https://github.com/PulpoScript/gta-sa-immersived-hud
 // #####################################################################
@@ -56,7 +56,7 @@ using namespace plugin;
 // =====================================================================
 //  CONFIGURACIÓN
 // =====================================================================
-static const char* VERSION = "0.1.0-dev.21";
+static const char* VERSION = "0.1.0-dev.22";
 static const int   TECLA_ACTIVAR = VK_F11;
 static const int   TECLA_DIAGNOSTICO = VK_F10;
 static const int   TECLA_CONSULTA = VK_OEM_PERIOD;   // "." (no la del teclado numérico)
@@ -1186,12 +1186,22 @@ static void ProcesarMenu() {
 
 static void DibujarMenu() {
     if (!menuAbierto) return;
-    float ex = SCREEN_WIDTH / 640.0f, ey = SCREEN_HEIGHT / 448.0f;   // escala sin WidescreenFix
-    float esc = ey;                                                    // misma escala en ambos ejes
-    float x = 20.0f * esc, y = 130.0f * ey, alto = 11.0f * ey, ancho = 230.0f * esc;  // debajo del cuadro de ayuda
-    (void)ex;
+    float esc = SCREEN_HEIGHT / 448.0f;                  // unidades de 640 × 448 (sin WidescreenFix)
+    float x = 20.0f * esc, ancho = 230.0f * esc;
+    float y = 75.0f * esc;                               // justo debajo del cuadro de ayuda
+    float alto = 11.0f * esc;                            // alto de cada línea
 
-    CSprite2d::DrawRect(CRect(x - 6.0f * esc, y - 24.0f * ey, x + ancho, y + alto * NUM_OPCIONES + 18.0f * ey),
+    // ---- Cuántas líneas caben; si no caben todas, la lista se desplaza ----
+    static int primera = 0;                              // primera opción visible
+    int caben = static_cast<int>((SCREEN_HEIGHT - y - 30.0f * esc) / alto);
+    if (caben < 5) caben = 5;
+    if (caben > NUM_OPCIONES) caben = NUM_OPCIONES;
+    if (menuSeleccion < primera + 1) primera = menuSeleccion - 1;           // deja ver el título de arriba
+    if (menuSeleccion > primera + caben - 1) primera = menuSeleccion - caben + 1;
+    if (primera < 0) primera = 0;
+    if (primera > NUM_OPCIONES - caben) primera = NUM_OPCIONES - caben;
+
+    CSprite2d::DrawRect(CRect(x - 6.0f * esc, y - 24.0f * esc, x + ancho, y + alto * caben + 18.0f * esc),
                         CRGBA(0, 0, 0, 190));
 
     CFont::SetBackground(false, false);
@@ -1206,15 +1216,16 @@ static void DibujarMenu() {
     // ---- Título ----
     char titulo[64];
     sprintf(titulo, "Immersived HUD %s - F9 cerrar", VERSION);
-    CFont::SetScale(0.30f * esc, 0.75f * ey);
+    CFont::SetScale(0.30f * esc, 0.75f * esc);
     CFont::SetOrientation(ALIGN_LEFT);
     CFont::SetColor(CRGBA(255, 200, 80, 255));
-    CFont::PrintString(x, y - 20.0f * ey, titulo);
+    CFont::PrintString(x, y - 20.0f * esc, titulo);
 
-    CFont::SetScale(0.25f * esc, 0.60f * ey);
-    for (int i = 0; i < NUM_OPCIONES; i++) {
+    CFont::SetScale(0.25f * esc, 0.60f * esc);
+    for (int n = 0; n < caben; n++) {
+        int i = primera + n;
         const Opcion& o = OPCIONES[i];
-        float fy = y + alto * i;
+        float fy = y + alto * n;
         bool sel = (i == menuSeleccion);
         CRGBA color = o.tipo == OPC_TITULO ? CRGBA(140, 170, 230, 255)
                     : sel ? CRGBA(255, 255, 255, 255) : CRGBA(180, 180, 180, 255);
@@ -1232,9 +1243,13 @@ static void DibujarMenu() {
         }
     }
 
+    // ---- Pie: ayuda y aviso de que hay más opciones arriba o abajo ----
+    char pie[96];
+    sprintf(pie, "Flechas: elegir / cambiar   Intro: restaurar%s%s",
+            primera > 0 ? "   (mas arriba)" : "", primera + caben < NUM_OPCIONES ? "   (mas abajo)" : "");
     CFont::SetOrientation(ALIGN_LEFT);
     CFont::SetColor(CRGBA(150, 150, 150, 255));
-    CFont::PrintString(x, y + alto * NUM_OPCIONES + 4.0f * ey, "Flechas: elegir / cambiar   Intro: restaurar");
+    CFont::PrintString(x, y + alto * caben + 4.0f * esc, pie);
     CFont::SetEdge(0);
 }
 

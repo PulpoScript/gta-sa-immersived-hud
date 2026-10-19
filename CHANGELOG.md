@@ -4,7 +4,13 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). A
 
 ## [Sin publicar]
 
-### 0.1.0-dev.21 — CJ quieto con el menú abierto (sin probar)
+### 0.1.0-dev.22 — El menú F9 cabe en pantalla (sin probar)
+
+- El menú empieza más arriba (justo debajo del cuadro de ayuda) y, si no caben todas las opciones, la lista se desplaza con la selección. El pie indica si hay más opciones arriba o abajo.
+
+### 0.1.0-dev.21 — CJ quieto con el menú abierto (probado)
+
+- ✅ CJ se queda quieto con el menú abierto. ❌ El menú se salía por abajo de la pantalla (corregido en la dev.22).
 
 - Nueva opción del menú F9, **"CJ quieto con el menu"** (activada por defecto): mientras el menú está abierto, CJ no responde a los controles, así que las flechas solo mueven el menú.
 - Técnica: bit propio (`0x8000`) en `CPad::DisablePlayerControls` (plugin-sdk, `CPad + 0x10E`), el indicador con el que el juego ignora los controles del jugador. Se pone y se quita sin tocar los valores de las misiones.
