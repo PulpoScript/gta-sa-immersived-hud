@@ -1,6 +1,6 @@
 // #####################################################################
 //  Immersived HUD — plugin ASI para GTA San Andreas PC 1.0 US
-//  Versión: 0.2.0-dev.10 — opacidad del icono de arma por su alfa de llamada
+//  Versión: 0.2.0-dev.11 — volcado del dibujo del icono de arma
 //  Requiere: plugin-sdk (Plugin_SA) y un cargador de ASI.
 //  Repositorio: https://github.com/PulpoScript/gta-sa-immersived-hud
 // #####################################################################
@@ -57,7 +57,7 @@ using namespace plugin;
 // =====================================================================
 //  CONFIGURACIÓN
 // =====================================================================
-static const char* VERSION = "0.2.0-dev.10";
+static const char* VERSION = "0.2.0-dev.11";
 static const int   TECLA_ACTIVAR = VK_F11;
 static const int   TECLA_DIAGNOSTICO = VK_F10;
 static const int   TECLA_CONSULTA = VK_OEM_PERIOD;   // "." (no la del teclado numérico)
@@ -160,7 +160,8 @@ static const Rango BUSQUEDAS[] = {
 
 // ---- Rangos a volcar en hexadecimal (para desensamblar fuera de la sesión) ----
 static const Rango VOLCADOS[] = {
-    { "CRadar::DrawBlips (inicio, la N)",         0x588050, 0x588400 },
+    { "CHud::DrawWeaponIcon",                     0x58D7D0, 0x58D9A0 },
+    { "DrawPlayerInfo: llamada al icono de arma", 0x58F880, 0x58F960 },
 };
 
 // =====================================================================

@@ -4,7 +4,13 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). A
 
 ## [Sin publicar]
 
-### 0.2.0-dev.10 — Opacidad del icono de arma por su alfa de llamada (sin probar)
+### 0.2.0-dev.11 — Volcado del dibujo del icono de arma (diagnóstico)
+
+- F10 vuelca `CHud::DrawWeaponIcon` (`0x58D7D0-0x58D9A0`) y la zona de `DrawPlayerInfo` que la llama (`0x58F880-0x58F960`), para ver cómo se dibujan los iconos con textura y de dónde sale su alfa. Se quita el volcado de `DrawBlips` (la "N" ya está resuelta).
+
+### 0.2.0-dev.10 — Opacidad del icono de arma por su alfa de llamada (probado)
+
+- ❌ El operando `0x58F8EA` se redirige bien (alfa 63.8 al 25 %), pero el icono con textura (aerosol) sigue opaco. Las llamadas `E8` de `DrawWeaponIcon` son `0x743C60` (`GetWeaponInfo`), `0x53CF70` (`AppendStringToKey`), `0x734E50` (`RwTexDictionaryFindHashNamedTexture`), `0x821B40`, `0x7170C0` y `0x728350` (`CSprite2d::Draw`, el puño); falta saber qué dibuja la textura.
 
 - El log de dev.9 mostró que `DrawWeaponIcon` no llama con `E8` a ninguna función de dibujo reconocible para los iconos con textura (solo el puño, con `CSprite2d::Draw`). En su lugar se cambia el alfa que recibe la función: `DrawPlayerInfo` lo carga con `fld [0x859AAC]` (= 255.0) en `0x58F8EA`; ese operando apunta ahora a un float propio (255 × opacidad). Sirve para el puño y para todas las armas. Se comprueba `D9 05` y el valor 255.0 antes de cambiarlo; F11 lo deshace.
 - Se quitan los desvíos del icono de dev.7–dev.9 (evita aplicar la opacidad dos veces al puño).
