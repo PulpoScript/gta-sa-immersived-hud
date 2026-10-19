@@ -4,6 +4,13 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). A
 
 ## [Sin publicar]
 
+### 0.1.0-dev.17 — Diferencia de dinero (sin probar)
+
+- Debajo del dinero se ve lo ganado (`+250`, verde) o perdido (`-540`, rojo), con la misma letra, contorno y alineación que el dinero. Se suma mientras el dinero sigue en pantalla y se olvida cuando se oculta.
+- La fila ocupa su sitio en la columna: el blindaje y la salud bajan mientras se ve.
+- Lo dibuja el plugin con `CFont` después del HUD (`drawHudEvent.after`), con las escalas del propio dinero (punteros de `0x58F5F6` y `0x58F5D0`, compatibles con WidescreenFix), y solo cuando el juego dibuja el HUD.
+- Sin verificar: que la fuente Pricedown tenga el signo `+`.
+
 ### 0.1.0-dev.16 — "." muestra todo con la nueva distribución (probado en mundo libre)
 
 - ✅ Primera prueba del autor en mundo libre: todo bien. Falta probar en misiones y otros momentos del juego antes de cerrar la `0.1.0`.

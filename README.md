@@ -8,6 +8,7 @@ Plugin ASI para **GTA San Andreas PC 1.0 US** que hace el HUD más inmersivo: ca
 
 - Mostrar cada elemento (hora, dinero, barras de salud y blindaje, estrellas, icono de arma) solo cuando pasa algo, y ocultarlo al rato.
 - Colocar esos elementos en otra posición, sin que se solapen.
+- Mostrar lo ganado o perdido debajo del dinero (+250 en verde, -540 en rojo).
 - Mostrar todo el HUD manteniendo una tecla.
 
 ## Origen

@@ -1,6 +1,6 @@
 // #####################################################################
 //  Immersived HUD — plugin ASI para GTA San Andreas PC 1.0 US
-//  Versión: 0.1.0-dev.16 — HUD dinámico (candidata a 0.1.0)
+//  Versión: 0.1.0-dev.17 — diferencia de dinero (+250 / -540)
 //  Requiere: plugin-sdk (Plugin_SA) y un cargador de ASI.
 //  Repositorio: https://github.com/PulpoScript/gta-sa-immersived-hud
 // #####################################################################
@@ -10,7 +10,8 @@
 //    esquina; a su izquierda hora, dinero, blindaje y salud; estrellas
 //    debajo; oxígeno abajo a la derecha). Cada elemento aparece cuando
 //    pasa algo y se oculta al rato; lo oculto deja su hueco y el resto
-//    se recoloca. Las reglas son las del Modo 2 del mod CLEO.
+//    se recoloca. Las reglas son las del Modo 2 del mod CLEO. Debajo del
+//    dinero se ve lo ganado (+250, verde) o perdido (-540, rojo).
 //
 //  CONTROLES
 //    "."  Toque corto: la hora 5 s. Mantener 0,8 s: todo el HUD visible
@@ -34,6 +35,13 @@
 #include "CTimer.h"
 #include "CPad.h"
 #include "CGameLogic.h"
+#include "CFont.h"
+#include "CHudColours.h"
+#include "CMenuManager.h"
+#include "CTheScripts.h"
+#include "CCamera.h"
+#include "CReplay.h"
+#include "CWeapon.h"
 #include <cstdio>
 #include <cstring>
 
@@ -42,7 +50,7 @@ using namespace plugin;
 // =====================================================================
 //  CONFIGURACIÓN
 // =====================================================================
-static const char* VERSION = "0.1.0-dev.16";
+static const char* VERSION = "0.1.0-dev.17";
 static const int   TECLA_ACTIVAR = VK_F11;
 static const int   TECLA_DIAGNOSTICO = VK_F10;
 static const int   TECLA_CONSULTA = VK_OEM_PERIOD;   // "." (no la del teclado numérico)
@@ -539,6 +547,10 @@ static void DevolverIndicadores() {
     if (radarQuitado) { CHud::bScriptDontDisplayRadar = false; radarQuitado = false; }
 }
 
+// ---- Diferencia de dinero: lo ganado o perdido mientras se ve el dinero ----
+static int diferenciaDinero = 0;                 // 0 = no se muestra
+static float diferenciaX = 0.0f, diferenciaY = 0.0f;   // unidades del HUD (Y sin desplazamiento)
+
 // =====================================================================
 //  POSICIONES DINÁMICAS
 //  Se usa siempre el montaje completo, pero lo que no se ve deja su
@@ -563,6 +575,11 @@ static void ActualizarPosiciones(CPed* ped) {
     dineroX.valor = colX;
     dineroY.valor = y + DESPL_DINERO * d;
     if (!parcheDinero.aplicado) y += PASO_DINERO;
+
+    // ---- Diferencia de dinero (la dibuja el plugin, debajo del dinero) ----
+    diferenciaX = colX;
+    diferenciaY = y;
+    if (!parcheDinero.aplicado && diferenciaDinero != 0) y += PASO_DINERO;
 
     // ---- Blindaje (el juego no lo dibuja con blindaje <= 1) ----
     blindajeX.valor = colX + LARGO_BLINDAJE;
@@ -640,6 +657,7 @@ static void DetectarEventos(CPed* ped, unsigned int ahora) {
 
     if (!datosIniciados) {
         // ---- Primera lectura: solo se guardan los valores ----
+        diferenciaDinero = 0;
         dineroAntes = dinero;
         armasAntes = armas;
         saludAntes = salud;
@@ -648,7 +666,14 @@ static void DetectarEventos(CPed* ped, unsigned int ahora) {
         return;
     }
 
-    if (dinero != dineroAntes) { dineroAntes = dinero; tDinero = ahora; }
+    // Cuando el dinero se oculta, la diferencia se olvida (no reaparece con ".").
+    if (!Visible(ahora, tDinero, TIEMPO_VISIBLE)) diferenciaDinero = 0;
+    if (dinero != dineroAntes) {
+        // Se suma mientras el dinero sigue en pantalla.
+        diferenciaDinero += dinero - dineroAntes;
+        dineroAntes = dinero;
+        tDinero = ahora;
+    }
     if (memcmp(&armas, &armasAntes, sizeof(armas)) != 0) { armasAntes = armas; tArma = ahora; }
     if (salud != saludAntes || blindaje != blindajeAntes) {
         saludAntes = salud;
@@ -808,6 +833,54 @@ static bool EscribirDiagnostico() {
 }
 
 // =====================================================================
+//  DIBUJO DE LA DIFERENCIA DE DINERO
+//  Mismo estilo que el dinero del montaje (Pricedown, letra 0,32 / 0,64,
+//  contorno 1, alineado a la derecha). Para que la escala coincida con
+//  la del juego (y con WidescreenFix) se leen las escalas que usa el
+//  propio dinero: los punteros de 0x58F5F6 (X) y 0x58F5D0 (Y).
+//  Solo se dibuja cuando el juego dibuja el HUD (mismas condiciones
+//  que CHud::Draw para DrawPlayerInfo, gta-reversed Hud.cpp).
+// =====================================================================
+static const unsigned int ESCALA_X_DINERO = 0x58F5F6;
+static const unsigned int ESCALA_Y_DINERO = 0x58F5D0;
+
+static bool LeerEscala(unsigned int operando, float& escala) {
+    if (!SePuedeLeer(operando, 4)) return false;
+    unsigned int puntero = *reinterpret_cast<const unsigned int*>(operando);
+    if (!SePuedeLeer(puntero, 4)) return false;
+    escala = *reinterpret_cast<const float*>(puntero);
+    return escala > 0.0f && escala < 0.01f;   // 1/640, 1/448 o la de WidescreenFix
+}
+
+static void DibujarDiferencia() {
+    if (!montajeActivo || parcheDinero.aplicado || diferenciaDinero == 0) return;
+    if (CReplay::Mode == 1 || CWeapon::ms_bTakePhoto || FrontEndMenuManager.m_bMenuActive) return;
+    if (TheCamera.m_bWideScreenOn || !FrontEndMenuManager.m_bPrefsShowHud || !CTheScripts::bDisplayHud) return;
+
+    float ex, ey;
+    if (!LeerEscala(ESCALA_X_DINERO, ex) || !LeerEscala(ESCALA_Y_DINERO, ey)) return;
+    float sx = SCREEN_WIDTH * ex;    // píxeles por unidad del HUD
+    float sy = SCREEN_HEIGHT * ey;
+
+    char texto[24];
+    if (diferenciaDinero > 0) sprintf(texto, "+%d", diferenciaDinero);
+    else                      sprintf(texto, "-%d", -diferenciaDinero);
+
+    CFont::SetBackground(false, false);
+    CFont::SetScale(sx * dineroAncho.valor, sy * dineroAlto.valor);
+    CFont::SetProportional(false);
+    CFont::SetFontStyle(FONT_PRICEDOWN);
+    CFont::SetOrientation(ALIGN_RIGHT);
+    CFont::SetRightJustifyWrap(0.0f);
+    CFont::SetDropShadowPosition(0);
+    CFont::SetEdge(1);
+    CFont::SetDropColor(CRGBA(0, 0, 0, 255));
+    CFont::SetColor(HudColour.GetRGBA(diferenciaDinero > 0 ? HUD_COLOUR_GREEN : HUD_COLOUR_RED));
+    CFont::PrintString(SCREEN_WIDTH - sx * diferenciaX, sy * diferenciaY, texto);
+    CFont::SetEdge(0);
+}
+
+// =====================================================================
 //  PLUGIN
 // =====================================================================
 static bool activo = true;      // el plugin empieza encendido
@@ -923,6 +996,7 @@ public:
         Events::drawHudEvent.after += [] {
             QuitarBordes();
             DevolverIndicadores();
+            DibujarDiferencia();
         };
     }
 } immersivedHud;
