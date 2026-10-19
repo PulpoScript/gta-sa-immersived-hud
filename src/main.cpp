@@ -1,32 +1,37 @@
 // #####################################################################
 //  Immersived HUD — plugin ASI para GTA San Andreas PC 1.0 US
-//  Versión: 0.1.0-dev.14 — oxígeno abajo a la derecha
+//  Versión: 0.1.0-dev.15 — HUD dinámico (candidata a 0.1.0)
 //  Requiere: plugin-sdk (Plugin_SA) y un cargador de ASI.
 //  Repositorio: https://github.com/PulpoScript/gta-sa-immersived-hud
 // #####################################################################
 //
-//  CONTROLES
-//    F11  Enciende / apaga el plugin (muestra un mensaje en pantalla).
-//         Encendido: el HUD pasa al montaje compacto (icono en la
-//         esquina; a su izquierda hora, dinero, blindaje y salud;
-//         estrellas debajo).
-//         Apagado: todo vuelve a su posición de fábrica.
-//    F10  Escribe ImmersivedHud.log junto a gta_sa.exe con lo que hay en
-//         las direcciones candidatas a posición del HUD y una búsqueda de
-//         instrucciones de float en el código de la hora, el icono, la
-//         munición, las estrellas, el dinero, las barras y DrawBarChart,
-//         dónde está el contorno de la hora y el dinero, y un volcado en
-//         hexadecimal de DrawBarChart (solo lectura).
+//  QUÉ HACE
+//    El HUD va en un montaje compacto arriba a la derecha (icono en la
+//    esquina; a su izquierda hora, dinero, blindaje y salud; estrellas
+//    debajo; oxígeno abajo a la derecha). Cada elemento aparece cuando
+//    pasa algo y se oculta al rato; lo oculto deja su hueco y el resto
+//    se recoloca. Las reglas son las del Modo 2 del mod CLEO.
 //
-//  TÉCNICA (la de WidescreenFix)
-//    Cada coordenada se lee con una instrucción "fmul [puntero]". No se
-//    toca la constante del juego (algunas se comparten entre elementos):
-//    se cambia el puntero de la instrucción para que apunte a un float
-//    propio. Antes de escribir se comprueba que el puntero sea el original.
+//  CONTROLES
+//    "."  Toque corto: la hora 5 s. Mantener 0,8 s: todo el HUD en su
+//         posición de fábrica; al soltar, todo visible 3 s.
+//    F11  Apaga / enciende el plugin (empieza encendido). Apagado: HUD
+//         de fábrica.
+//    F10  Escribe ImmersivedHud.log junto a gta_sa.exe (diagnóstico,
+//         solo lectura).
+//
+//  TÉCNICA
+//    Posición y tamaño: cada coordenada se lee con "fmul [puntero]". No
+//    se toca la constante del juego (algunas se comparten): se cambia el
+//    puntero de la instrucción para que apunte a un float propio, como
+//    hace WidescreenFix. Ocultar: parches "ret" / NOP probados en el mod
+//    CLEO. Antes de escribir se comprueba siempre el valor original.
 // #####################################################################
 
 #include "plugin.h"
 #include "CHud.h"
+#include "CWorld.h"
+#include "CTimer.h"
 #include <cstdio>
 #include <cstring>
 
@@ -35,9 +40,16 @@ using namespace plugin;
 // =====================================================================
 //  CONFIGURACIÓN
 // =====================================================================
-static const char* VERSION = "0.1.0-dev.14";
+static const char* VERSION = "0.1.0-dev.15";
 static const int   TECLA_ACTIVAR = VK_F11;
 static const int   TECLA_DIAGNOSTICO = VK_F10;
+static const int   TECLA_CONSULTA = VK_OEM_PERIOD;   // "." (no la del teclado numérico)
+
+static const unsigned int TIEMPO_VISIBLE     = 5000;  // ms: dinero, arma, barras y hora
+static const unsigned int TIEMPO_RADAR       = 8000;  // ms tras el último motivo
+static const unsigned int TIEMPO_TRAS_SOLTAR = 3000;  // ms: al activar y al soltar "." larga
+static const unsigned int PULSACION_LARGA    = 800;   // ms para que "." muestre todo
+static const float        SALUD_BAJA         = 25.0f; // puntos: por debajo, barras fijas
 
 // =====================================================================
 //  DIRECCIONES A REVISAR (SIN VERIFICAR)
@@ -112,6 +124,11 @@ static bool SePuedeLeer(unsigned int dir, unsigned int tam) {
     return dir + tam <= fin;
 }
 
+// Datos del jugador que se está controlando (CWorld::Players[PlayerInFocus]).
+static CPlayerInfo& Jugador() {
+    return CWorld::Players[static_cast<unsigned char>(CWorld::PlayerInFocus)];
+}
+
 // =====================================================================
 //  REDIRECCIÓN DE PUNTEROS
 // =====================================================================
@@ -152,47 +169,75 @@ static void Restaurar(Coordenada& c) {
 //  MONTAJE COMPACTO
 //  Unidades del HUD (con WidescreenFix a 1080p, 1 unidad ≈ 1,93 px).
 //  X se mide desde el borde derecho; Y desde arriba.
-//  Punteros de fábrica verificados en dev.2 y dev.4.
-//  Valores: primera aproximación sacada de las capturas; hay que ajustar.
+//  Punteros de fábrica verificados en dev.2, dev.4, dev.6 y dev.8.
+//  Las posiciones de la columna y las estrellas se recalculan en cada
+//  frame (ActualizarPosiciones): lo que está oculto deja su hueco y el
+//  resto sube; sin icono, la columna se pega a la esquina.
 // =====================================================================
-static Coordenada MONTAJE[] = {
-    // ---- Icono de arma: pegado a la esquina (fábrica X 32, Y 20) ----
-    { 0x58F927, 0x0085950C, -57.0f, false },  // X = ancho - (esto + parte de WidescreenFix)
-    { 0x58F913, 0x00858BA4,   4.5f, false },  // Y
-    // ---- Munición: sigue al icono, sobre su parte de abajo (fábrica X 32, Y 20 + 43) ----
-    { 0x58FA02, 0x0085950C, -57.0f, false },
-    { 0x58F9DC, 0x00858BA4,   4.5f, false },  // Y base
-    // ---- Hora: a la izquierda del icono, letra más pequeña (fábrica X 32, Y 22, letra 1,1 / 0,55) ----
-    { 0x58EC16, 0x0085950C,  57.0f, false },
-    { 0x58EC04, 0x00858F8C,  12.0f, false },
-    { 0x58EB31, 0x00858F14,  0.64f, false },  // alto de letra
-    { 0x58EB47, 0x00866CAC,  0.32f, false },  // ancho de letra
-    // ---- Dinero: debajo de la hora, misma letra (fábrica X 32, Y 89, letra 1,1 / 0,55; el juego resta 12 a la Y si la salud máxima < 101) ----
-    { 0x58F5FC, 0x0085950C,  57.0f, false },
-    { 0x58F5DC, 0x00866C88,  38.5f, false },
-    { 0x58F54E, 0x00858F14,  0.64f, false },  // alto de letra (sin probar)
-    { 0x58F564, 0x00866CAC,  0.32f, false },  // ancho de letra (sin probar)
-    // ---- Blindaje: debajo del dinero (fábrica X 94, Y 48) ----
-    { 0x58EF59, 0x00866B78, 119.0f, false },
-    { 0x58EF3A, 0x00862D38,  43.0f, false },
-    // ---- Salud: debajo del blindaje, termina a la altura del icono (fábrica X 141, Y 77) ----
-    { 0x58EE87, 0x0086535C, 166.0f, false },
-    { 0x58EE68, 0x00866CA8,  60.0f, false },
-    // ---- Estrellas: debajo de la salud, alineadas con el icono (fábrica X 29, Y 114) ----
-    { 0x58DD0F, 0x00863210,   8.0f, false },
-    { 0x58DDFC, 0x00866C5C,  72.0f, false },  // encendidas (fld)
-    { 0x58DEF5, 0x00866C5C,  72.0f, false },  // apagadas
-    { 0x58DFB3, 0x00866C5C,  72.0f, false },  // otra pasada con la misma Y
-    // ---- Oxígeno: abajo a la derecha (fábrica X 94 = borde izquierdo, compartido con Blindaje X; largo 62) ----
-    { 0x58F11F, 0x00866B78,  67.0f, false },  // borde derecho a 5 unidades del borde de la pantalla
-    // ---- Estrellas: un 12 % más pequeñas (fábrica alto 1,21, ancho 0,605; tres pasadas) ----
-    { 0x58DCAA, 0x00866C64, 1.065f, false },
-    { 0x58DCC0, 0x00866C60, 0.532f, false },
-    { 0x58DD70, 0x00866C64, 1.065f, false },
-    { 0x58DD86, 0x00866C60, 0.532f, false },
-    { 0x58DF5D, 0x00866C64, 1.065f, false },
-    { 0x58DF79, 0x00866C60, 0.532f, false },
+// ---- Icono de arma y munición (fábrica X 32, Y 20; munición Y = 20 + 43) ----
+static Coordenada iconoX     = { 0x58F927, 0x0085950C, -57.0f, false };  // X = ancho - (esto + parte de WidescreenFix)
+static Coordenada iconoY     = { 0x58F913, 0x00858BA4,   4.5f, false };
+static Coordenada municionX  = { 0x58FA02, 0x0085950C, -57.0f, false };
+static Coordenada municionY  = { 0x58F9DC, 0x00858BA4,   4.5f, false };  // Y base
+// ---- Hora (fábrica X 32, Y 22, letra 1,1 / 0,55) ----
+static Coordenada horaX      = { 0x58EC16, 0x0085950C,  57.0f, false };
+static Coordenada horaY      = { 0x58EC04, 0x00858F8C,  12.0f, false };
+static Coordenada horaAlto   = { 0x58EB31, 0x00858F14,  0.64f, false };  // alto de letra
+static Coordenada horaAncho  = { 0x58EB47, 0x00866CAC,  0.32f, false };  // ancho de letra
+// ---- Dinero (fábrica X 32, Y 89, letra 1,1 / 0,55) ----
+static Coordenada dineroX    = { 0x58F5FC, 0x0085950C,  57.0f, false };
+static Coordenada dineroY    = { 0x58F5DC, 0x00866C88,  38.5f, false };
+static Coordenada dineroAlto = { 0x58F54E, 0x00858F14,  0.64f, false };
+static Coordenada dineroAncho= { 0x58F564, 0x00866CAC,  0.32f, false };
+// ---- Blindaje y salud (fábrica X 94 / 141 = borde izquierdo, Y 48 / 77) ----
+static Coordenada blindajeX  = { 0x58EF59, 0x00866B78, 119.0f, false };
+static Coordenada blindajeY  = { 0x58EF3A, 0x00862D38,  43.0f, false };
+static Coordenada saludX     = { 0x58EE87, 0x0086535C, 166.0f, false };
+static Coordenada saludY     = { 0x58EE68, 0x00866CA8,  60.0f, false };
+// ---- Estrellas (fábrica X 29, Y 114; tamaño 1,21 / 0,605) ----
+static Coordenada estrellasX = { 0x58DD0F, 0x00863210,   8.0f, false };
+static Coordenada estrellasY1= { 0x58DDFC, 0x00866C5C,  72.0f, false };  // encendidas (fld)
+static Coordenada estrellasY2= { 0x58DEF5, 0x00866C5C,  72.0f, false };  // intermitentes
+static Coordenada estrellasY3= { 0x58DFB3, 0x00866C5C,  72.0f, false };  // fondo de las vacías
+static Coordenada estrellaAlto1 = { 0x58DCAA, 0x00866C64, 1.065f, false };
+static Coordenada estrellaAncho1= { 0x58DCC0, 0x00866C60, 0.532f, false };
+static Coordenada estrellaAlto2 = { 0x58DD70, 0x00866C64, 1.065f, false };
+static Coordenada estrellaAncho2= { 0x58DD86, 0x00866C60, 0.532f, false };
+static Coordenada estrellaAlto3 = { 0x58DF5D, 0x00866C64, 1.065f, false };
+static Coordenada estrellaAncho3= { 0x58DF79, 0x00866C60, 0.532f, false };
+// ---- Oxígeno: abajo a la derecha (fábrica X 94 = borde izquierdo, compartido con Blindaje X; largo 62) ----
+static Coordenada oxigenoX   = { 0x58F11F, 0x00866B78,  67.0f, false };  // borde derecho a 5 unidades del borde
+
+static Coordenada* const MONTAJE[] = {
+    &iconoX, &iconoY, &municionX, &municionY,
+    &horaX, &horaY, &horaAlto, &horaAncho,
+    &dineroX, &dineroY, &dineroAlto, &dineroAncho,
+    &blindajeX, &blindajeY, &saludX, &saludY,
+    &estrellasX, &estrellasY1, &estrellasY2, &estrellasY3,
+    &estrellaAlto1, &estrellaAncho1, &estrellaAlto2, &estrellaAncho2, &estrellaAlto3, &estrellaAncho3,
+    &oxigenoX,
 };
+
+// ---- Medidas de la columna (Y "efectiva": sin el desplazamiento por salud máxima) ----
+static const float COLUMNA_X_CON_ICONO = 57.0f;   // borde derecho de hora, dinero y barras
+static const float COLUMNA_X_SIN_ICONO = 9.0f;    // sin icono: alineada con el borde derecho del icono
+static const float COLUMNA_Y_INICIO    = 12.0f;   // primera fila
+static const float PASO_HORA      = 14.5f;        // de la fila de la hora a la siguiente
+static const float PASO_DINERO    = 13.5f;
+static const float PASO_BLINDAJE  = 10.0f;
+static const float PASO_SALUD     = 10.0f;
+static const float LARGO_BLINDAJE = 62.0f;        // la X de la barra es su borde izquierdo
+static const float LARGO_SALUD    = 109.0f;       // a salud máxima (el borde derecho no cambia)
+static const float ESTRELLAS_BAJO_ICONO = 60.0f;  // con icono, las estrellas no suben más de aquí
+static const float OXIGENO_Y      = 541.0f;
+
+// ---- Desplazamiento del juego con salud máxima < 101 (ReSA, DrawPlayerInfo / DrawWanted) ----
+// El juego resta estas unidades a la Y; se suman para que no se descoloque.
+static const float DESPL_DINERO    = 12.0f;
+static const float DESPL_ESTRELLAS = 12.0f;
+static const float DESPL_SALUD     = 10.0f;
+static const float DESPL_BLINDAJE  = 3.0f;
+static const float DESPL_OXIGENO   = 6.0f;
 
 // =====================================================================
 //  CONTORNO DE LA HORA Y EL DINERO
@@ -263,11 +308,12 @@ static void QuitarContornos() {
 }
 
 // =====================================================================
-//  TAMAÑO DE LAS BARRAS
-//  gta-reversed (Hud.cpp): RenderArmorBar (0x58A160) usa 62 × 9 y
-//  RenderHealthBar (0x589270) usa 109 × 9. La dirección exacta no está
-//  verificada: se busca dentro de cada función una instrucción fmul/fld
-//  que lea ese valor y solo se redirige si aparece una única vez.
+//  ALTO DE LA BARRA DE SALUD
+//  gta-reversed (Hud.cpp): RenderHealthBar (0x589270) usa 109 × 9. Se
+//  busca dentro de la función una instrucción fmul/fld que lea 9 y solo
+//  se redirige si aparece una única vez (probado en dev.12: 0x589358).
+//  El largo de la salud aparece dos veces y el blindaje se deja de
+//  fábrica (62 × 9): el autor dio por bueno ese resultado.
 // =====================================================================
 struct Tamano {
     const char* nombre;
@@ -279,10 +325,7 @@ struct Tamano {
 };
 
 static Tamano TAMANOS[] = {
-    { "blindaje largo", 0x58A160, 0x58A230,  62.0f, 0, { 0, 0, 56.0f, false } },
-    { "blindaje alto",  0x58A160, 0x58A230,   9.0f, 0, { 0, 0,  8.0f, false } },
-    { "salud largo",    0x589270, 0x5893B0, 109.0f, 0, { 0, 0, 98.0f, false } },
-    { "salud alto",     0x589270, 0x5893B0,   9.0f, 0, { 0, 0,  8.0f, false } },
+    { "salud alto", 0x589270, 0x5893B0, 9.0f, 0, { 0, 0, 8.0f, false } },
 };
 
 // Busca "fmul [mem]" (D8 0D) o "fld [mem]" (D9 05) cuyo float valga 'valor'.
@@ -302,26 +345,12 @@ static void BuscarTamano(Tamano& t) {
     }
 }
 
-// Devuelve la coordenada del montaje que usa esa dirección.
-static Coordenada* BuscarEnMontaje(unsigned int direccion) {
-    for (Coordenada& c : MONTAJE) if (c.direccion == direccion) return &c;
-    return NULL;
-}
-
-// Margen derecho del grupo: el borde derecho de las barras queda aquí.
-static const float BORDE_DERECHO = 57.0f;
-
 static void AplicarTamanos() {
     for (Tamano& t : TAMANOS) {
         if (t.c.redirigida) continue;
         BuscarTamano(t);
         if (t.encontrados == 1) Redirigir(t.c);
     }
-    // ---- La X de cada barra es su borde izquierdo: se ajusta al largo real ----
-    Coordenada* blindajeX = BuscarEnMontaje(0x58EF59);
-    Coordenada* saludX = BuscarEnMontaje(0x58EE87);
-    if (blindajeX) blindajeX->valor = BORDE_DERECHO + (TAMANOS[0].c.redirigida ? TAMANOS[0].c.valor : 62.0f);
-    if (saludX)    saludX->valor    = BORDE_DERECHO + (TAMANOS[2].c.redirigida ? TAMANOS[2].c.valor : 109.0f);
 }
 
 static void QuitarTamanos() {
@@ -378,17 +407,14 @@ static void QuitarBordes() {
 }
 
 // =====================================================================
-//  OXÍGENO Y (SIN VERIFICAR)
-//  En salud y blindaje el puntero de la Y va 6 bytes después del de la
-//  escala Y de WidescreenFix (0x58EE62 → 0x58EE68, 0x58EF34 → 0x58EF3A).
-//  La escala Y del oxígeno está en 0x58F0FA (WidescreenFix: 0x58F0F8),
-//  así que la Y debería estar en 0x58F100. Solo se redirige si ahí hay
-//  un fmul [mem] (D8 0D) que lee un float entre 0 y 448.
+//  OXÍGENO Y
+//  Probado en dev.14: 0x58F100 es la Y del oxígeno (ReSA: fmul [0x86503C]
+//  en 0x58F0FE). Como el puntero de fábrica no se anotó, se lee al
+//  aplicar: solo se redirige si es un fmul [mem] (D8 0D) que lee un
+//  float entre 0 y 448.
 // =====================================================================
 static const unsigned int OXIGENO_Y_DIR = 0x58F100;
-static const float OXIGENO_Y_PROPIA = 547.0f;  // abajo del todo (1080p: ~1050 px)
-
-static Coordenada oxigenoY = { OXIGENO_Y_DIR, 0, OXIGENO_Y_PROPIA, false };
+static Coordenada oxigenoY = { OXIGENO_Y_DIR, 0, OXIGENO_Y + DESPL_OXIGENO, false };
 static float oxigenoYFabrica = -1.0f;   // valor leído (para el log)
 
 // Comprueba la instrucción y rellena el puntero de fábrica. Devuelve true si es válida.
@@ -405,20 +431,233 @@ static bool ComprobarOxigenoY() {
     return true;
 }
 
-static bool montajeActivo = false;  // F11 encendido
+static bool montajeActivo = false;  // montaje compacto aplicado
 
 static void AplicarMontaje() {
-    for (Coordenada& c : MONTAJE) Redirigir(c);
+    if (montajeActivo) return;
+    for (Coordenada* c : MONTAJE) Redirigir(*c);
     if (!oxigenoY.redirigida && ComprobarOxigenoY()) Redirigir(oxigenoY);
     AplicarContornos();
     AplicarTamanos();
+    montajeActivo = true;
 }
 
 static void QuitarMontaje() {
-    for (Coordenada& c : MONTAJE) Restaurar(c);
+    if (!montajeActivo) return;
+    for (Coordenada* c : MONTAJE) Restaurar(*c);
     Restaurar(oxigenoY);
     QuitarContornos();
     QuitarTamanos();
+    montajeActivo = false;
+}
+
+// =====================================================================
+//  OCULTAR ELEMENTOS (técnicas probadas en el mod CLEO, ver DIRECCIONES.md)
+//  - ret (0xC3) al principio de funciones cdecl: icono, munición, salud
+//    y blindaje. Quien llama limpia la pila, así que es seguro.
+//  - 5 NOP en lugar de "call CFont::PrintString" del dinero (0x58F607).
+//  Antes de escribir se comprueban los bytes originales; si no coinciden
+//  (otro ejecutable u otro mod), ese elemento nunca se oculta.
+// =====================================================================
+struct Parche {
+    const char* nombre;
+    unsigned int direccion;
+    unsigned int tam;
+    unsigned char original[5];
+    unsigned char parche[5];
+    int estado;              // 0 = sin comprobar, 1 = disponible, -1 = no disponible
+    bool aplicado;
+};
+
+static Parche parcheIcono    = { "icono",    0x58D7D0, 1, { 0xA1 }, { 0xC3 }, 0, false };
+static Parche parcheMunicion = { "municion", 0x5893B0, 1, { 0x53 }, { 0xC3 }, 0, false };
+static Parche parcheSalud    = { "salud",    0x589270, 1, { 0x83 }, { 0xC3 }, 0, false };
+static Parche parcheBlindaje = { "blindaje", 0x5890A0, 1, { 0x83 }, { 0xC3 }, 0, false };
+static Parche parcheDinero   = { "dinero",   0x58F607, 5, { 0xE8, 0xF4, 0xB0, 0x18, 0x00 },
+                                                          { 0x90, 0x90, 0x90, 0x90, 0x90 }, 0, false };
+
+static Parche* const PARCHES[] = { &parcheIcono, &parcheMunicion, &parcheSalud, &parcheBlindaje, &parcheDinero };
+
+static bool EscribirBytes(unsigned int dir, const unsigned char* bytes, unsigned int tam) {
+    DWORD antes;
+    void* p = reinterpret_cast<void*>(dir);
+    if (!VirtualProtect(p, tam, PAGE_EXECUTE_READWRITE, &antes)) return false;
+    memcpy(p, bytes, tam);
+    VirtualProtect(p, tam, antes, &antes);
+    return true;
+}
+
+static void Ocultar(Parche& p) {
+    if (p.aplicado) return;
+    if (p.estado == 0) {
+        bool igual = SePuedeLeer(p.direccion, p.tam) &&
+                     memcmp(reinterpret_cast<const void*>(p.direccion), p.original, p.tam) == 0;
+        p.estado = igual ? 1 : -1;
+    }
+    if (p.estado != 1) return;
+    if (memcmp(reinterpret_cast<const void*>(p.direccion), p.original, p.tam) != 0) return;
+    p.aplicado = EscribirBytes(p.direccion, p.parche, p.tam);
+}
+
+static void Mostrar(Parche& p) {
+    if (!p.aplicado) return;
+    if (memcmp(reinterpret_cast<const void*>(p.direccion), p.parche, p.tam) != 0) return;
+    if (EscribirBytes(p.direccion, p.original, p.tam)) p.aplicado = false;
+}
+
+static void Poner(Parche& p, bool oculto) {
+    if (oculto) Ocultar(p);
+    else        Mostrar(p);
+}
+
+// ---- Hora y radar: indicadores del juego (CHud::bDrawClock, CHud::bScriptDontDisplayRadar) ----
+// Los scripts también los cambian. Al ocultar se reafirma en cada frame
+// (una partida cargada los reinicia); al mostrar solo se deshace lo que
+// cambió el plugin.
+static bool horaOcultaPorPlugin = false;
+static bool radarOcultoPorPlugin = false;
+
+static void PonerHora(bool oculta) {
+    if (oculta) {
+        if (CHud::bDrawClock) { CHud::bDrawClock = false; horaOcultaPorPlugin = true; }
+    } else if (horaOcultaPorPlugin) {
+        CHud::bDrawClock = true;
+        horaOcultaPorPlugin = false;
+    }
+}
+
+static void PonerRadar(bool oculto) {
+    if (oculto) {
+        if (!CHud::bScriptDontDisplayRadar) { CHud::bScriptDontDisplayRadar = true; radarOcultoPorPlugin = true; }
+    } else if (radarOcultoPorPlugin) {
+        CHud::bScriptDontDisplayRadar = false;
+        radarOcultoPorPlugin = false;
+    }
+}
+
+// =====================================================================
+//  POSICIONES DINÁMICAS
+//  Se usa siempre el montaje completo, pero lo que no se ve deja su
+//  hueco: los de debajo suben y, sin icono, la columna se pega a la
+//  esquina. Las estrellas van debajo de la columna (y del icono si se ve).
+//  Con salud máxima < 101 el juego resta DESPL_* a la Y: se compensa.
+// =====================================================================
+static void ActualizarPosiciones(CPed* ped) {
+    bool saludMaxBaja = Jugador().m_nMaxHealth < 101;
+    float d = saludMaxBaja ? 1.0f : 0.0f;
+
+    bool hayIcono = !parcheIcono.aplicado;
+    float colX = hayIcono ? COLUMNA_X_CON_ICONO : COLUMNA_X_SIN_ICONO;
+    float y = COLUMNA_Y_INICIO;
+
+    // ---- Hora ----
+    horaX.valor = colX;
+    horaY.valor = y;
+    if (CHud::bDrawClock) y += PASO_HORA;
+
+    // ---- Dinero ----
+    dineroX.valor = colX;
+    dineroY.valor = y + DESPL_DINERO * d;
+    if (!parcheDinero.aplicado) y += PASO_DINERO;
+
+    // ---- Blindaje (el juego no lo dibuja con blindaje <= 1) ----
+    blindajeX.valor = colX + LARGO_BLINDAJE;
+    blindajeY.valor = y + DESPL_BLINDAJE * d;
+    if (!parcheBlindaje.aplicado && ped && ped->m_fArmour > 1.0f) y += PASO_BLINDAJE;
+
+    // ---- Salud ----
+    saludX.valor = colX + LARGO_SALUD;
+    saludY.valor = y + DESPL_SALUD * d;
+    if (!parcheSalud.aplicado) y += PASO_SALUD;
+
+    // ---- Estrellas ----
+    float yEstrellas = (hayIcono && y < ESTRELLAS_BAJO_ICONO) ? ESTRELLAS_BAJO_ICONO : y;
+    estrellasY1.valor = estrellasY2.valor = estrellasY3.valor = yEstrellas + DESPL_ESTRELLAS * d;
+
+    // ---- Oxígeno ----
+    oxigenoY.valor = OXIGENO_Y + DESPL_OXIGENO * d;
+}
+
+// =====================================================================
+//  COMPORTAMIENTO DINÁMICO (mismas reglas que el Modo 2 del mod CLEO)
+//  - Dinero: 5 s tras un cambio.
+//  - Arma y munición: 5 s tras cambiar ranura, tipo o munición total.
+//  - Salud y blindaje: 5 s tras un cambio; fijas con salud < 25.
+//  - Radar: en vehículo, con nivel de búsqueda o esprintando; se oculta
+//    8 s después del último motivo.
+//  - Hora: solo con la tecla "." (toque corto: 5 s).
+//  - Mantener "." 0,8 s: todo el HUD en su posición de fábrica; al
+//    soltar, montaje compacto con todo visible 3 s.
+//  - Al activar el plugin (o cargar partida): todo visible 3 s.
+//  Los tiempos usan el reloj del juego (se para en pausa).
+// =====================================================================
+static unsigned int tDinero = 0, tArma = 0, tBarras = 0, tRadar = 0, tHora = 0;
+
+// Deja cada elemento "a 3 s de ocultarse".
+static void MostrarTodo3s(unsigned int ahora) {
+    tDinero = tArma = tBarras = tHora = ahora - (TIEMPO_VISIBLE - TIEMPO_TRAS_SOLTAR);
+    tRadar = ahora - (TIEMPO_RADAR - TIEMPO_TRAS_SOLTAR);
+}
+
+static bool Visible(unsigned int ahora, unsigned int desde, unsigned int duracion) {
+    return ahora - desde < duracion;
+}
+
+// ---- Valores anteriores para detectar cambios ----
+struct EstadoArmas {
+    unsigned char ranura;
+    unsigned int tipo[13];
+    unsigned int municion[13];
+};
+
+static bool datosIniciados = false;
+static int dineroAntes = 0;
+static EstadoArmas armasAntes;
+static float saludAntes = 0.0f, blindajeAntes = 0.0f;
+
+static void LeerArmas(CPed* ped, EstadoArmas& e) {
+    memset(&e, 0, sizeof(e));
+    e.ranura = ped->m_nSelectedWepSlot;
+    for (int i = 0; i < 13; i++) {
+        e.tipo[i] = static_cast<unsigned int>(ped->m_aWeapons[i].m_eWeaponType);
+        e.municion[i] = ped->m_aWeapons[i].m_nAmmoTotal;
+    }
+}
+
+// Detecta los eventos de este frame y reinicia el tiempo de cada elemento.
+static void DetectarEventos(CPed* ped, unsigned int ahora) {
+    int dinero = Jugador().m_nMoney;
+    if (!ped) return;   // cargando: no hay jugador
+
+    EstadoArmas armas;
+    LeerArmas(ped, armas);
+    float salud = ped->m_fHealth;
+    float blindaje = ped->m_fArmour;
+
+    if (!datosIniciados) {
+        // ---- Primera lectura: solo se guardan los valores ----
+        dineroAntes = dinero;
+        armasAntes = armas;
+        saludAntes = salud;
+        blindajeAntes = blindaje;
+        datosIniciados = true;
+        return;
+    }
+
+    if (dinero != dineroAntes) { dineroAntes = dinero; tDinero = ahora; }
+    if (memcmp(&armas, &armasAntes, sizeof(armas)) != 0) { armasAntes = armas; tArma = ahora; }
+    if (salud != saludAntes || blindaje != blindajeAntes) {
+        saludAntes = salud;
+        blindajeAntes = blindaje;
+        tBarras = ahora;
+    }
+
+    // ---- Radar: en vehículo, esprintando o con nivel de búsqueda ----
+    CWanted* buscado = FindPlayerWanted();
+    if (ped->bInVehicle || ped->m_nMoveState == PEDMOVE_SPRINT ||
+        (buscado && buscado->m_nWantedLevel > 0)) {
+        tRadar = ahora;
+    }
 }
 
 // =====================================================================
@@ -519,6 +758,21 @@ static bool EscribirDiagnostico() {
         fprintf(f, "\n");
     }
 
+    // ---- Ocultar: estado de cada parche ----
+    fprintf(f, "\nParches para ocultar (0 = sin comprobar, 1 = disponible, -1 = no disponible)\n\n");
+    for (const Parche* p : PARCHES) {
+        fprintf(f, "%-9s 0x%06X  estado %2d  %s  bytes", p->nombre, p->direccion, p->estado,
+                p->aplicado ? "oculto " : "visible");
+        if (SePuedeLeer(p->direccion, p->tam))
+            for (unsigned int i = 0; i < p->tam; i++)
+                fprintf(f, " %02X", reinterpret_cast<const unsigned char*>(p->direccion)[i]);
+        fprintf(f, "\n");
+    }
+    fprintf(f, "hora oculta por el plugin: %d (bDrawClock %d)\n", horaOcultaPorPlugin, CHud::bDrawClock);
+    fprintf(f, "radar oculto por el plugin: %d (bScriptDontDisplayRadar %d)\n",
+            radarOcultoPorPlugin, CHud::bScriptDontDisplayRadar);
+    fprintf(f, "salud maxima: %d\n", Jugador().m_nMaxHealth);
+
     // ---- Contorno de la hora y el dinero ----
     fprintf(f, "\nContorno (push 2; call CFont::SetEdge 0x%06X)\n\n", FUNCION_SET_EDGE);
     for (const Contorno& c : CONTORNOS) {
@@ -553,25 +807,46 @@ static bool EscribirDiagnostico() {
 // =====================================================================
 //  PLUGIN
 // =====================================================================
+static bool activo = true;   // el plugin empieza encendido
+
+// Deja el juego como de fábrica: posiciones, tamaños y nada oculto.
+static void TodoDeFabrica() {
+    QuitarMontaje();
+    for (Parche* p : PARCHES) Mostrar(*p);
+    PonerHora(false);
+    PonerRadar(false);
+}
+
 class ImmersivedHud {
 public:
     ImmersivedHud() {
         // Se ejecuta una vez por frame mientras se juega.
         Events::gameProcessEvent += [] {
-            static bool activo = false;          // estado del plugin
+            static bool primerFrame = true;
             static bool teclaAntes = false;      // F11 pulsada en el frame anterior
             static bool diagAntes = false;       // F10 pulsada en el frame anterior
+            static bool puntoAntes = false;      // "." pulsada en el frame anterior
+            static bool puntoLargo = false;      // "." lleva pulsada 0,8 s o más
+            static unsigned int tPunto = 0;      // momento en que se pulsó "."
+            static unsigned int ahoraAntes = 0;
             static char texto[96];
+
+            unsigned int ahora = CTimer::m_snTimeInMilliseconds;
+            CPed* ped = FindPlayerPed();
+
+            // ---- Inicio o partida cargada (el reloj del juego vuelve atrás) ----
+            if (primerFrame || ahora < ahoraAntes) {
+                primerFrame = false;
+                datosIniciados = false;
+                MostrarTodo3s(ahora);
+            }
+            ahoraAntes = ahora;
 
             // ---- Tecla F11: cambia de estado solo al pulsar (no al mantener) ----
             bool teclaAhora = (GetAsyncKeyState(TECLA_ACTIVAR) & 0x8000) != 0;
             if (teclaAhora && !teclaAntes) {
                 activo = !activo;
-                montajeActivo = activo;
-
-                // ---- Aplicar o quitar el montaje compacto ----
-                if (activo) AplicarMontaje();
-                else        QuitarMontaje();
+                if (activo) MostrarTodo3s(ahora);
 
                 // ---- Aviso en pantalla (sin acentos: la fuente del juego no los tiene) ----
                 sprintf(texto, "Immersived HUD v%s: %s", VERSION, activo ? "activado" : "desactivado");
@@ -579,7 +854,7 @@ public:
             }
             teclaAntes = teclaAhora;
 
-            // ---- Tecla F10: diagnóstico de direcciones (solo lectura) ----
+            // ---- Tecla F10: diagnóstico (solo lectura) ----
             bool diagAhora = (GetAsyncKeyState(TECLA_DIAGNOSTICO) & 0x8000) != 0;
             if (diagAhora && !diagAntes) {
                 bool ok = EscribirDiagnostico();
@@ -588,6 +863,48 @@ public:
                 CHud::SetHelpMessage(texto, true, false, false);
             }
             diagAntes = diagAhora;
+
+            // ---- Eventos del juego (siempre, para no detectar cambios viejos al encender) ----
+            DetectarEventos(ped, ahora);
+
+            if (!activo) {
+                puntoAntes = puntoLargo = false;
+                TodoDeFabrica();
+                return;
+            }
+
+            // ---- Tecla ".": toque = hora 5 s; mantener 0,8 s = HUD de fábrica ----
+            bool puntoAhora = (GetAsyncKeyState(TECLA_CONSULTA) & 0x8000) != 0;
+            if (puntoAhora) {
+                if (!puntoAntes) tPunto = ahora;
+                if (ahora - tPunto >= PULSACION_LARGA) puntoLargo = true;
+            } else if (puntoAntes) {
+                if (puntoLargo) MostrarTodo3s(ahora);   // todo 3 s, la hora incluida
+                else            tHora = ahora;          // la hora 5 s
+                puntoLargo = false;
+            }
+            puntoAntes = puntoAhora;
+
+            if (puntoLargo) {
+                TodoDeFabrica();
+                return;
+            }
+
+            // ---- Estado deseado de cada elemento ----
+            bool saludBaja = ped && ped->m_fHealth < SALUD_BAJA;
+            bool ocultarArma   = !Visible(ahora, tArma, TIEMPO_VISIBLE);
+            bool ocultarBarras = !Visible(ahora, tBarras, TIEMPO_VISIBLE) && !saludBaja;
+
+            AplicarMontaje();
+            Poner(parcheDinero, !Visible(ahora, tDinero, TIEMPO_VISIBLE));
+            Poner(parcheIcono, ocultarArma);
+            Poner(parcheMunicion, ocultarArma);
+            Poner(parcheSalud, ocultarBarras);
+            Poner(parcheBlindaje, ocultarBarras);
+            PonerHora(!Visible(ahora, tHora, TIEMPO_VISIBLE));
+            PonerRadar(!Visible(ahora, tRadar, TIEMPO_RADAR));
+
+            ActualizarPosiciones(ped);
         };
 
         // ---- Borde de las barras: solo mientras se dibuja el HUD ----
