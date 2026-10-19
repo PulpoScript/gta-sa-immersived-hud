@@ -14,6 +14,10 @@ Plugin ASI para **GTA San Andreas PC 1.0 US** que hace el HUD más inmersivo: ca
 
 Continúa las ideas probadas en [gta-sa-hud-mod](https://github.com/PulpoScript/gta-sa-hud-mod), un mod CLEO que sirvió de prototipo (Modos 1 y 2). Este proyecto es independiente: **no uses los dos a la vez**.
 
+## Versiones
+
+Estado de cada versión en [docs/VERSIONES.md](docs/VERSIONES.md); detalle en el [CHANGELOG](CHANGELOG.md).
+
 ## Requisitos
 
 - GTA San Andreas PC **1.0 US**.

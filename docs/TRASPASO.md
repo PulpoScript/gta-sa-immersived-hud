@@ -52,6 +52,10 @@ Pega este archivo (o su enlace) al empezar una sesión nueva con el asistente.
 - Comprobación de sintaxis sin MSVC: clang 20 y mingw g++ contra plugin-sdk (`check.sh` en el directorio temporal de la sesión; reinstalar con `apt-get install -y g++-mingw-w64-i686 clang-20` y clonar plugin-sdk).
 - Fuente clave: [ReSA](https://github.com/pedrokilo/ReSA) (desensamblado de `DrawPlayerInfo` y `DrawWanted` 1.0 US).
 
+## Regla de documentación
+
+Con cada versión `-dev` se actualizan `CHANGELOG.md` y la tabla de [VERSIONES.md](VERSIONES.md).
+
 ## Lecciones
 
 - Compilar con **Compilar → Compilar solución** (`Ctrl + Mayús + B`), no con ▶ / F5: un `.asi` no se ejecuta solo.
