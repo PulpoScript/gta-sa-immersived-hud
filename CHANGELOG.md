@@ -4,7 +4,9 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). A
 
 ## [Sin publicar]
 
-### 0.1.0-dev.16 — "." muestra todo con la nueva distribución (sin probar)
+### 0.1.0-dev.16 — "." muestra todo con la nueva distribución (probado en mundo libre)
+
+- ✅ Primera prueba del autor en mundo libre: todo bien. Falta probar en misiones y otros momentos del juego antes de cerrar la `0.1.0`.
 
 - Mantener "." 0,8 s muestra todo el HUD en el montaje compacto (antes, HUD de fábrica). Al soltar, se oculta a los 3 s. Para el HUD de fábrica, F11.
 

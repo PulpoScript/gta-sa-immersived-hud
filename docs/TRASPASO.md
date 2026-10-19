@@ -30,6 +30,27 @@ Pega este archivo (o su enlace) al empezar una sesión nueva con Claude.
 | Versión | Contenido | Estado |
 |---|---|---|
 | `0.1.0-dev.1` | Proyecto mínimo: F11 activa / desactiva con mensaje | ✅ Probado |
+| `0.1.0-dev.2` a `dev.14` | Diagnóstico de direcciones y montaje compacto (posiciones, tamaños, contorno, borde de barras, estrellas, oxígeno) | ✅ Probado y aprobado |
+| `0.1.0-dev.15` / `dev.16` | HUD dinámico (reglas del Modo 2), huecos que se cierran, tecla ".", compensación de salud máxima | ✅ Mundo libre. ⏳ Falta probar en misiones |
+
+**La `0.1.0` todavía no está cerrada:** el autor quiere probar en misiones y otros momentos antes. Al cerrarla: versión `0.1.0` en el código, CHANGELOG y documentación.
+
+## Pruebas pendientes antes de cerrar la 0.1.0
+
+| Situación | Qué mirar |
+|---|---|
+| Misiones que ocultan el radar o el HUD (minijuegos: billar, baloncesto, baile, casino) | Que el plugin no muestre el radar cuando la misión lo oculta |
+| Escenas de vídeo y pantalla panorámica | Nada raro al volver |
+| Muerte y hospital, arresto | Barras, dinero y radar tras reaparecer |
+| Cargar otra partida desde el menú | Todo visible 3 s |
+| Subir la salud máxima (misiones de gimnasio / ambulancia) | Que nada se mueva |
+| Bucear, conducir, pilotar | Oxígeno y radar |
+| Tecla TAB a pie | Panel de estadísticas visible |
+
+## Herramientas de la sesión (Claude)
+
+- Comprobación de sintaxis sin MSVC: clang 20 y mingw g++ contra plugin-sdk (`check.sh` en el directorio temporal de la sesión; reinstalar con `apt-get install -y g++-mingw-w64-i686 clang-20` y clonar plugin-sdk).
+- Fuente clave: [ReSA](https://github.com/pedrokilo/ReSA) (desensamblado de `DrawPlayerInfo` y `DrawWanted` 1.0 US).
 
 ## Lecciones
 
@@ -40,4 +61,4 @@ Pega este archivo (o su enlace) al empezar una sesión nueva con Claude.
 
 ## Próximo paso
 
-Definir con el autor el primer comportamiento: probablemente ocultar y mostrar un elemento (como el Modo 2 del mod CLEO) o mover uno (el dinero es el más sencillo: punteros de posición verificados en `0x58F5FC` y `0x58F5DC`).
+Recoger los resultados de las pruebas en misiones y corregir lo que falle. Después, cerrar la `0.1.0`.
