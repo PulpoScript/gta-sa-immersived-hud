@@ -1,6 +1,6 @@
 // #####################################################################
 //  Immersived HUD — plugin ASI para GTA San Andreas PC 1.0 US
-//  Versión: 0.2.0-dev.12 — opacidad de los iconos de arma con textura
+//  Versión: 0.2.0-dev.13 — opacidad del puño
 //  Requiere: plugin-sdk (Plugin_SA) y un cargador de ASI.
 //  Repositorio: https://github.com/PulpoScript/gta-sa-immersived-hud
 // #####################################################################
@@ -57,7 +57,7 @@ using namespace plugin;
 // =====================================================================
 //  CONFIGURACIÓN
 // =====================================================================
-static const char* VERSION = "0.2.0-dev.12";
+static const char* VERSION = "0.2.0-dev.13";
 static const int   TECLA_ACTIVAR = VK_F11;
 static const int   TECLA_DIAGNOSTICO = VK_F10;
 static const int   TECLA_CONSULTA = VK_OEM_PERIOD;   // "." (no la del teclado numérico)
@@ -1413,13 +1413,14 @@ static void __cdecl RadarPoligono(float x1, float y1, float x2, float y2, float 
 }
 
 // ---- Icono de arma ----
-// DrawPlayerInfo llama a CHud::DrawWeaponIcon(ped, x, y, alfa) con alfa =
-// 255.0 cargado con fld [0x859AAC] (operando en 0x58F8EA, volcado de F10).
-// Ese alfa lo usan el puño (CSprite2d::Draw) y los iconos con textura
-// (que no pasan por funciones E8 reconocibles); se apunta a un float propio.
-static const unsigned int OPERANDO_ALFA_ICONO = 0x58F8EA;
-static float alfaIcono = 255.0f;
-static unsigned int alfaIconoOriginal = 0;
+// Puño: CSprite2d::Draw (thiscall; __fastcall con un argumento falso en EDX
+// equivale) con el alfa que recibe DrawWeaponIcon. Ese alfa es el del
+// parpadeo del icono (DrawPlayerInfo lo limita a 0-255), así que se escala
+// en la llamada.
+static void __fastcall IconoPuno(CSprite2d* sprite, void*, const CRect& r, const CRGBA& c) {
+    CRGBA k = c; k.a = Alfa(E_ARMA, c.a);
+    reinterpret_cast<DrawRect_t>(0x728350)(sprite, r, k);
+}
 
 // Iconos con textura: DrawWeaponIcon llama a CSprite::RenderOneXLUSprite
 // (enganchada por otro mod) con el alfa fijo: push 255 en 0x58D89A (volcado
@@ -1451,6 +1452,7 @@ static BusquedaDesvio BUSQUEDAS_OPACIDAD[] = {
     { "municion: contorno",   0x5893B0, 0x589650, 0x719510, reinterpret_cast<const void*>(&ColorContorno<E_ARMA>), 0 },
     { "estrellas: color",     0x58D9A0, 0x58E020, 0x719430, reinterpret_cast<const void*>(&ColorTexto<E_ESTRELLAS>), 0 },
     { "estrellas: contorno",  0x58D9A0, 0x58E020, 0x719510, reinterpret_cast<const void*>(&ColorContorno<E_ESTRELLAS>), 0 },
+    { "icono: puno (Draw)",   0x58D7D0, 0x58D9A0, 0x728350, reinterpret_cast<const void*>(&IconoPuno), 0 },
     { "salud: barra",         0x589270, 0x5893B0, 0x728640, reinterpret_cast<const void*>(&BarraConAlfa<E_SALUD>), 0 },
     { "blindaje: barra",      0x5890A0, 0x589190, 0x728640, reinterpret_cast<const void*>(&BarraConAlfa<E_BLINDAJE>), 0 },
     { "oxigeno: barra",       0x589190, 0x589270, 0x728640, reinterpret_cast<const void*>(&BarraConAlfa<E_OXIGENO>), 0 },
@@ -1505,14 +1507,6 @@ static void InstalarOpacidad() {
             dir += 4;
         }
     }
-    // ---- Alfa del icono de arma: solo si es fld [puntero] con 255.0 ----
-    const unsigned char* op = reinterpret_cast<const unsigned char*>(OPERANDO_ALFA_ICONO - 2);
-    if (SePuedeLeer(OPERANDO_ALFA_ICONO - 2, 6) && op[0] == 0xD9 && op[1] == 0x05) {
-        unsigned int ptr = *reinterpret_cast<const unsigned int*>(OPERANDO_ALFA_ICONO);
-        if (SePuedeLeer(ptr, 4) && *reinterpret_cast<const float*>(ptr) == 255.0f &&
-            EscribirPuntero(OPERANDO_ALFA_ICONO, reinterpret_cast<unsigned int>(&alfaIcono)))
-            alfaIconoOriginal = ptr;
-    }
     static const unsigned char PUSH_255[5] = { 0x68, 0xFF, 0x00, 0x00, 0x00 };
     if (SePuedeLeer(PUSH_ALFA_TEXTURA, 5) && memcmp(reinterpret_cast<const void*>(PUSH_ALFA_TEXTURA), PUSH_255, 5) == 0) {
         alfaTexturaAplicado = true;
@@ -1525,10 +1519,6 @@ static void QuitarOpacidad() {
     if (!opacidadInstalada) return;
     for (int i = 0; i < numDesvios; i++) EscribirBytes(desvios[i].sitio + 1, desvios[i].original, 4);
     numDesvios = 0;
-    if (alfaIconoOriginal &&
-        *reinterpret_cast<const unsigned int*>(OPERANDO_ALFA_ICONO) == reinterpret_cast<unsigned int>(&alfaIcono))
-        EscribirPuntero(OPERANDO_ALFA_ICONO, alfaIconoOriginal);
-    alfaIconoOriginal = 0;
     EscribirAlfaTextura(255);
     alfaTexturaAplicado = false;
     opacidadInstalada = false;
@@ -1548,9 +1538,7 @@ static void DiagnosticoOpacidad(FILE* f) {
             if (destino < 0x401000 || destino > 0x900000) continue;   // no parece una llamada
             fprintf(f, "  0x%06X -> 0x%06X\n", dir, destino);
         }
-    fprintf(f, "\nAlfa del icono de arma (0x%06X): %s, valor %.1f\n", OPERANDO_ALFA_ICONO,
-            alfaIconoOriginal ? "redirigido" : "sin redirigir", alfaIcono);
-    fprintf(f, "Alfa de los iconos con textura (push en 0x%06X): %s, valor %d\n", PUSH_ALFA_TEXTURA,
+    fprintf(f, "\nAlfa de los iconos con textura (push en 0x%06X): %s, valor %d\n", PUSH_ALFA_TEXTURA,
             alfaTexturaAplicado ? "cambiado" : "sin cambiar", alfaTexturaEscrito);
     fprintf(f, "\nSitios:\n");
     for (int i = 0; i < numDesvios; i++) fprintf(f, "  0x%06X  %s\n", desvios[i].sitio, desvios[i].nombre);
@@ -1943,7 +1931,6 @@ public:
             // ---- Opacidad (menú F9); apagado = sin desvíos ----
             if (activo) InstalarOpacidad();
             else        QuitarOpacidad();
-            alfaIcono = 255.0f * PorcentajeOpacidad(E_ARMA) / 100.0f;
             EscribirAlfaTextura(255 * PorcentajeOpacidad(E_ARMA) / 100);
 
             if (!activo) {

@@ -4,7 +4,15 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). A
 
 ## [Sin publicar]
 
-### 0.2.0-dev.12 — Opacidad de los iconos de arma con textura (sin probar)
+### 0.2.0-dev.13 — Opacidad del puño (sin probar)
+
+- El volcado muestra que el alfa que recibe `DrawWeaponIcon` es el del parpadeo del icono: `DrawPlayerInfo` lo limita a 0–255 y solo usa la constante 255.0 (`0x58F8EA`) cuando lo supera. Por eso cambiar esa constante (dev.10) no afectaba al puño. Se quita ese cambio y se vuelve a redirigir la llamada del puño a `CSprite2d::Draw` (`0x58D988`), como en dev.7–dev.9.
+- Los iconos con textura siguen con el cambio del `push 255` de dev.12.
+
+### 0.2.0-dev.12 — Opacidad de los iconos de arma con textura (probado)
+
+- ✅ F10: el `push` de `0x58D89A` se cambia (12 al 5 %).
+- ❌ El puño dejó de cambiar de opacidad desde dev.10.
 
 - El volcado de dev.11 muestra que los iconos con textura se dibujan con `CSprite::RenderOneXLUSprite` (la llamada de `0x58D8FD` va a otro mod que la engancha, por eso no aparecía) con el alfa fijo: `push 255` en `0x58D89A`. El alfa que recibe `DrawWeaponIcon` solo lo usa el puño (`CRGBA` en `0x58D978`, `CSprite2d::Draw` en `0x58D988`).
 - Ese inmediato se cambia a 255 × opacidad cuando cambia el valor; se comprueba `68 FF 00 00 00` antes y F11 lo devuelve a 255. Se mantiene el cambio de `0x58F8EA` para el puño.
