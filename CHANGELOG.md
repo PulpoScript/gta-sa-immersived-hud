@@ -4,7 +4,9 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). A
 
 ## [Sin publicar]
 
-### 0.1.0-dev.14 — Oxígeno abajo a la derecha (sin probar)
+### 0.1.0-dev.14 — Oxígeno abajo a la derecha (probado)
+
+- ✅ El oxígeno aparece abajo a la derecha: `0x58F100` es la Y del oxígeno (valor de fábrica sin anotar).
 
 - Oxígeno X (`0x58F11F`) a 67: borde derecho a 5 unidades del borde de la pantalla, como en el primer boceto.
 - Oxígeno Y: candidata `0x58F100` (sin verificar, deducida del patrón de salud y blindaje). Solo se redirige si es `fmul [mem]` con un valor entre 0 y 448. F10 muestra el resultado.
