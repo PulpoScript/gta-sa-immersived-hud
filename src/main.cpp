@@ -1,6 +1,6 @@
 // #####################################################################
 //  Immersived HUD — plugin ASI para GTA San Andreas PC 1.0 US
-//  Versión: 0.1.0-dev.19 — menú de depuración (F9) y radar sin espera al quitar el destino
+//  Versión: 0.1.0-dev.20 — barra de resistencia
 //  Requiere: plugin-sdk (Plugin_SA) y un cargador de ASI.
 //  Repositorio: https://github.com/PulpoScript/gta-sa-immersived-hud
 // #####################################################################
@@ -47,6 +47,7 @@
 #include "CWeapon.h"
 #include "CRadar.h"
 #include "CSprite2d.h"
+#include "CStats.h"
 #include <cstdio>
 #include <cstring>
 
@@ -55,7 +56,7 @@ using namespace plugin;
 // =====================================================================
 //  CONFIGURACIÓN
 // =====================================================================
-static const char* VERSION = "0.1.0-dev.19";
+static const char* VERSION = "0.1.0-dev.20";
 static const int   TECLA_ACTIVAR = VK_F11;
 static const int   TECLA_DIAGNOSTICO = VK_F10;
 static const int   TECLA_CONSULTA = VK_OEM_PERIOD;   // "." (no la del teclado numérico)
@@ -75,6 +76,7 @@ struct Ajustes {
     int msDinero, msArma, msBarras, msHora, msRadar, msTodo;     // ms visibles
     int saludBaja;          // puntos: por debajo, barras fijas
     int radarVehiculo, radarEsprintar, radarEstrellas, radarObjetivo, radarDestino;
+    int modoResistencia, msResistencia;   // barra de resistencia
 };
 
 static const Ajustes AJUSTES_FABRICA = {
@@ -83,6 +85,7 @@ static const Ajustes AJUSTES_FABRICA = {
     5000, 5000, 5000, 5000, 8000, 3000,
     25,
     1, 1, 1, 1, 1,
+    MODO_DINAMICO, 3000,
 };
 
 static Ajustes cfg = AJUSTES_FABRICA;
@@ -468,6 +471,7 @@ static bool ComprobarOxigenoY() {
 }
 
 static bool montajeActivo = false;  // montaje compacto aplicado
+static bool activoGlobal = true;    // copia de 'activo' (plugin encendido) para el dibujo
 
 static void AplicarMontaje() {
     if (montajeActivo) return;
@@ -962,6 +966,66 @@ static void DibujarDiferencia() {
 }
 
 // =====================================================================
+//  BARRA DE RESISTENCIA (la dibuja el plugin)
+//  CPlayerData::m_fTimeCanRun baja al esprintar y sube al andar (gta-
+//  reversed, CPlayerPed::HandleSprintEnergy). Se puede esprintar mientras
+//  sea mayor de -150; el máximo es CStats::GetFatAndMuscleModifier(
+//  STAT_MOD_TIME_CAN_RUN), que depende de la resistencia de CJ.
+//  Va donde el oxígeno (abajo a la derecha), con el mismo tamaño y
+//  borde; si el oxígeno también se ve, la resistencia va encima.
+//  Dinámica: visible mientras no está llena y msResistencia después.
+// =====================================================================
+static const float RESISTENCIA_MINIMA = -150.0f;
+static const float BARRA_LARGO = 62.0f, BARRA_ALTO = 9.0f;   // como el oxígeno
+static const float PASO_BARRA_ABAJO = 12.0f;                 // separación sobre el oxígeno
+static unsigned int tResistencia = 0;
+static float resistencia = 1.0f;       // 0..1
+static bool resistenciaInfinita = false;
+static bool oxigenoVisible = false;
+
+static void LeerResistencia(CPed* ped, unsigned int ahora) {
+    resistenciaInfinita = true;
+    oxigenoVisible = false;
+    if (!ped || !ped->m_pPlayerData) return;
+    CPlayerData* datos = ped->m_pPlayerData;
+    resistenciaInfinita = Jugador().m_bDoesNotGetTired || datos->m_bAdrenaline;
+
+    float maximo = CStats::GetFatAndMuscleModifier(STAT_MOD_TIME_CAN_RUN);
+    float rango = maximo - RESISTENCIA_MINIMA;
+    float r = rango > 0.0f ? (datos->m_fTimeCanRun - RESISTENCIA_MINIMA) / rango : 1.0f;
+    if (r < 0.0f) r = 0.0f;
+    if (r > 1.0f) r = 1.0f;
+    resistencia = r;
+    if (r < 0.999f && !resistenciaInfinita) tResistencia = ahora;
+
+    oxigenoVisible = datos->m_fBreath < CStats::GetFatAndMuscleModifier(STAT_MOD_AIR_IN_LUNG);
+}
+
+static void DibujarResistencia(unsigned int ahora) {
+    if (!activoGlobal || resistenciaInfinita) return;
+    if (cfg.modoResistencia == MODO_NUNCA) return;
+    if (cfg.modoResistencia == MODO_DINAMICO && !Visible(ahora, tResistencia, cfg.msResistencia)) return;
+    if (CReplay::Mode == 1 || CWeapon::ms_bTakePhoto || FrontEndMenuManager.m_bMenuActive) return;
+    if (TheCamera.m_bWideScreenOn || !FrontEndMenuManager.m_bPrefsShowHud || !CTheScripts::bDisplayHud) return;
+
+    float ex, ey;
+    if (!LeerEscala(ESCALA_X_DINERO, ex) || !LeerEscala(ESCALA_Y_DINERO, ey)) return;
+    float sx = SCREEN_WIDTH * ex, sy = SCREEN_HEIGHT * ey;
+
+    // Misma esquina que el oxígeno (borde derecho a 5 unidades del borde de la pantalla).
+    float bordeIzq = oxigenoX.valor;                 // X = borde izquierdo
+    float arriba = OXIGENO_Y - (oxigenoVisible ? PASO_BARRA_ABAJO : 0.0f);
+
+    if (montajeActivo) AplicarBordes();              // mismo borde fino que el resto
+    CSprite2d::DrawBarChart(SCREEN_WIDTH - sx * bordeIzq, sy * arriba,
+                            static_cast<unsigned short>(sx * BARRA_LARGO),
+                            static_cast<unsigned char>(sy * BARRA_ALTO),
+                            resistencia * 100.0f, 0, false, true,
+                            CRGBA(225, 190, 60, 255), CRGBA(0, 0, 0, 0));
+    QuitarBordes();
+}
+
+// =====================================================================
 //  MENÚ DE DEPURACIÓN (F9) — temporal, se quitará en la versión final
 //  Cada opción apunta a un campo de 'cfg'. Los cambios se guardan al
 //  momento en ImmersivedHud.ini (junto a gta_sa.exe) y se cargan al
@@ -995,6 +1059,8 @@ static const Opcion OPCIONES[] = {
     { "Radar tras el ultimo motivo","MsRadar",        OPC_SEGUNDOS, &cfg.msRadar, 0, 60000, 500 },
     { "Todo (al soltar . / activar)","MsTodo",        OPC_SEGUNDOS, &cfg.msTodo, 500, 60000, 500 },
     { "Barras fijas con salud <",   "SaludBaja",      OPC_PUNTOS,   &cfg.saludBaja, 0, 200, 5 },
+    { "Resistencia",                "ModoResistencia",OPC_MODO,     &cfg.modoResistencia, 0, 2, 1 },
+    { "Resistencia (al llenarse)",  "MsResistencia",  OPC_SEGUNDOS, &cfg.msResistencia, 0, 60000, 500 },
     { "RADAR VISIBLE CON",          nullptr,          OPC_TITULO,   nullptr, 0, 0, 0 },
     { "Vehiculo",                   "RadarVehiculo",  OPC_SINO,     &cfg.radarVehiculo, 0, 1, 1 },
     { "Esprintar",                  "RadarEsprintar", OPC_SINO,     &cfg.radarEsprintar, 0, 1, 1 },
@@ -1230,6 +1296,8 @@ public:
 
             // ---- Eventos del juego (siempre, para no detectar cambios viejos al encender) ----
             DetectarEventos(ped, ahora);
+            LeerResistencia(ped, ahora);
+            activoGlobal = activo;
 
             if (!activo) {
                 puntoAntes = puntoLargo = false;
@@ -1285,6 +1353,7 @@ public:
             QuitarBordes();
             DevolverIndicadores();
             DibujarDiferencia();
+            DibujarResistencia(CTimer::m_snTimeInMilliseconds);
             DibujarMenu();
         };
     }

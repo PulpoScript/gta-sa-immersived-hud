@@ -4,6 +4,13 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). A
 
 ## [Sin publicar]
 
+### 0.1.0-dev.20 — Barra de resistencia (sin probar)
+
+- Nueva barra de **resistencia** (lo que CJ puede esprintar antes de cansarse), abajo a la derecha, donde el oxígeno, con el mismo tamaño y borde fino. Color dorado. Si el oxígeno también se ve, la resistencia va justo encima.
+- Dato: `CPlayerData::m_fTimeCanRun`, de −150 (agotado) al máximo `CStats::GetFatAndMuscleModifier(STAT_MOD_TIME_CAN_RUN)`, que crece con la estadística de resistencia (gta-reversed, `CPlayerPed::HandleSprintEnergy`).
+- Dinámica: visible mientras no está llena y 3 s después de llenarse. No se muestra con resistencia infinita (truco o adrenalina).
+- Menú F9: modo de la resistencia (dinámico / siempre / nunca) y su tiempo.
+
 ### 0.1.0-dev.19 — Menú de depuración y radar sin espera al quitar el destino (sin probar)
 
 - **Corregido:** al quitar el destino del mapa (o terminar el objetivo), el radar se ocultaba 8 s después. Ahora el objetivo de misión y el destino propio cuentan **solo mientras existen**; los demás motivos (vehículo, esprintar, estrellas) mantienen su espera.
