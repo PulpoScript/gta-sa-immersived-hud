@@ -1,6 +1,6 @@
 // #####################################################################
 //  Immersived HUD — plugin ASI para GTA San Andreas PC 1.0 US
-//  Versión: 0.2.0-dev.8 — opacidad del radar y del color del dinero
+//  Versión: 0.2.0-dev.9 — opacidad de los iconos de arma con textura
 //  Requiere: plugin-sdk (Plugin_SA) y un cargador de ASI.
 //  Repositorio: https://github.com/PulpoScript/gta-sa-immersived-hud
 // #####################################################################
@@ -57,7 +57,7 @@ using namespace plugin;
 // =====================================================================
 //  CONFIGURACIÓN
 // =====================================================================
-static const char* VERSION = "0.2.0-dev.8";
+static const char* VERSION = "0.2.0-dev.9";
 static const int   TECLA_ACTIVAR = VK_F11;
 static const int   TECLA_DIAGNOSTICO = VK_F10;
 static const int   TECLA_CONSULTA = VK_OEM_PERIOD;   // "." (no la del teclado numérico)
@@ -1434,6 +1434,19 @@ static void __cdecl RadarPoligono(float x1, float y1, float x2, float y2, float 
     reinterpret_cast<Poligono_t>(0x7285B0)(x1, y1, x2, y2, x3, y3, x4, y4, k);
 }
 
+// Iconos de arma con textura propia (todas menos el puño): gta-reversed,
+// CHud::DrawWeaponIcon, usa SetVertices con coordenadas de textura y
+// después RwIm2DRenderPrimitive. El puño usa CSprite2d::Draw.
+typedef void (__cdecl *VerticesUV_t)(const CRect&, const CRGBA&, const CRGBA&, const CRGBA&, const CRGBA&,
+                                     float, float, float, float, float, float, float, float);
+static void __cdecl IconoVerticesUV(const CRect& r, const CRGBA& c1, const CRGBA& c2, const CRGBA& c3, const CRGBA& c4,
+                                    float u1, float v1, float u2, float v2, float u3, float v3, float u4, float v4) {
+    CRGBA k1 = c1, k2 = c2, k3 = c3, k4 = c4;
+    k1.a = Alfa(E_ARMA, c1.a); k2.a = Alfa(E_ARMA, c2.a); k3.a = Alfa(E_ARMA, c3.a); k4.a = Alfa(E_ARMA, c4.a);
+    if (k1.a != 255) RwRenderStateSet(rwRENDERSTATEVERTEXALPHAENABLE, reinterpret_cast<void*>(TRUE));
+    reinterpret_cast<VerticesUV_t>(0x727710)(r, k1, k2, k3, k4, u1, v1, u2, v2, u3, v3, u4, v4);
+}
+
 struct BusquedaDesvio {
     const char* nombre;
     unsigned int inicio, fin;   // rango de la función del elemento
@@ -1456,6 +1469,7 @@ static BusquedaDesvio BUSQUEDAS_OPACIDAD[] = {
     { "icono: Draw (rect2)", 0x58D7D0, 0x58D9A0, 0x7283B0, reinterpret_cast<const void*>(&IconoRect2), 0 },
     { "icono: Draw (x, y)",   0x58D7D0, 0x58D9A0, 0x7282C0, reinterpret_cast<const void*>(&IconoXY), 0 },
     { "icono: SetVertices",   0x58D7D0, 0x58D9A0, 0x727420, reinterpret_cast<const void*>(&IconoVertices), 0 },
+    { "icono: SetVertices UV",0x58D7D0, 0x58D9A0, 0x727710, reinterpret_cast<const void*>(&IconoVerticesUV), 0 },
     { "salud: barra",         0x589270, 0x5893B0, 0x728640, reinterpret_cast<const void*>(&BarraConAlfa<E_SALUD>), 0 },
     { "blindaje: barra",      0x5890A0, 0x589190, 0x728640, reinterpret_cast<const void*>(&BarraConAlfa<E_BLINDAJE>), 0 },
     { "oxigeno: barra",       0x589190, 0x589270, 0x728640, reinterpret_cast<const void*>(&BarraConAlfa<E_OXIGENO>), 0 },
@@ -1524,6 +1538,16 @@ static void DiagnosticoOpacidad(FILE* f) {
     fprintf(f, "\nOpacidad: llamadas redirigidas (%s)\n\n", opacidadInstalada ? "instalada" : "sin instalar");
     for (const BusquedaDesvio& b : BUSQUEDAS_OPACIDAD)
         fprintf(f, "%-22s 0x%06X-0x%06X -> 0x%06X  encontradas: %d\n", b.nombre, b.inicio, b.fin, b.objetivo, b.encontrados);
+    // Todas las llamadas E8 de DrawWeaponIcon (para localizar el dibujo del icono si no se encontrara)
+    fprintf(f, "\nLlamadas E8 en DrawWeaponIcon (0x58D7D0-0x58D9A0):\n");
+    if (SePuedeLeer(0x58D7D0, 0x1D5))
+        for (unsigned int dir = 0x58D7D0; dir < 0x58D9A0; dir++) {
+            const unsigned char* c = reinterpret_cast<const unsigned char*>(dir);
+            if (c[0] != 0xE8) continue;
+            unsigned int destino = dir + 5 + *reinterpret_cast<const int*>(c + 1);
+            if (destino < 0x401000 || destino > 0x900000) continue;   // no parece una llamada
+            fprintf(f, "  0x%06X -> 0x%06X\n", dir, destino);
+        }
     fprintf(f, "\nSitios:\n");
     for (int i = 0; i < numDesvios; i++) fprintf(f, "  0x%06X  %s\n", desvios[i].sitio, desvios[i].nombre);
 }

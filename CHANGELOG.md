@@ -4,7 +4,15 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). A
 
 ## [Sin publicar]
 
-### 0.2.0-dev.8 — Opacidad del radar y del color del dinero (sin probar)
+### 0.2.0-dev.9 — Opacidad de los iconos de arma con textura (sin probar)
+
+- Los iconos de arma (salvo el puño) no cambiaban de opacidad: según gta-reversed (`CHud::DrawWeaponIcon`), se dibujan con `CSprite2d::SetVertices` con coordenadas de textura (`0x727710`) y `RwIm2DRenderPrimitive`; el puño usa `CSprite2d::Draw`. Esa llamada se redirige también, activando la mezcla de alfa si hace falta.
+- F10 lista todas las llamadas `E8` de `DrawWeaponIcon`, por si el icono se dibujara de otra forma.
+
+### 0.2.0-dev.8 — Opacidad del radar y del color del dinero (probado)
+
+- ✅ El radar cambia de opacidad.
+- ❌ Los iconos de arma con textura (todos menos el puño) no cambiaban.
 
 - **Radar** en F9 > Opacidad (también lo cubre el modo Global). Solo afecta al radar del HUD; el mapa del menú de pausa no cambia. Se redirigen las llamadas de dibujo de: mapa (`DrawRadarSection`, `SetVertices` `0x727890`; se activa la mezcla de alfa porque el juego dibuja el mapa sin ella), zonas de bandas (`DrawAreaOnRadar`), iconos (`DrawRadarSprite`), flecha del jugador (`DrawRotatingRadarSprite`), puntos de objetivo (`ShowRadarTrace` / `ShowRadarTraceWithHeight`) y aro o marco rectangular.
 - Las 4 llamadas del aro (`0x58A823`, `0x58A8CD`, `0x58A977`, `0x58AA25`) se redirigen ahora siempre a una única función: con radar redondo dibuja el aro con la opacidad del radar; con rectangular, el marco.
