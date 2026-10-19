@@ -1,6 +1,6 @@
 // #####################################################################
 //  Immersived HUD — plugin ASI para GTA San Andreas PC 1.0 US
-//  Versión: 0.2.0-dev.9 — opacidad de los iconos de arma con textura
+//  Versión: 0.2.0-dev.10 — opacidad del icono de arma por su alfa de llamada
 //  Requiere: plugin-sdk (Plugin_SA) y un cargador de ASI.
 //  Repositorio: https://github.com/PulpoScript/gta-sa-immersived-hud
 // #####################################################################
@@ -57,7 +57,7 @@ using namespace plugin;
 // =====================================================================
 //  CONFIGURACIÓN
 // =====================================================================
-static const char* VERSION = "0.2.0-dev.9";
+static const char* VERSION = "0.2.0-dev.10";
 static const int   TECLA_ACTIVAR = VK_F11;
 static const int   TECLA_DIAGNOSTICO = VK_F10;
 static const int   TECLA_CONSULTA = VK_OEM_PERIOD;   // "." (no la del teclado numérico)
@@ -1365,29 +1365,6 @@ static void __cdecl BarraConAlfa(float x, float y, unsigned short ancho, unsigne
     CSprite2d::DrawBarChart(x, y, ancho, alto, progreso, suma, porcentaje, borde, color, colorSuma);
 }
 
-// ---- Icono de arma: CSprite2d::Draw es thiscall; __fastcall con un argumento falso (EDX) equivale ----
-typedef void (__thiscall *DrawXY_t)(CSprite2d*, float, float, float, float, const CRGBA&);
-static void __fastcall IconoRect(CSprite2d* sprite, void*, const CRect& r, const CRGBA& c) {
-    CRGBA k = c; k.a = Alfa(E_ARMA, c.a);
-    reinterpret_cast<DrawRect_t>(0x728350)(sprite, r, k);
-}
-static void __fastcall IconoRect2(CSprite2d* sprite, void*, const CRect& r, const CRGBA& c) {
-    CRGBA k = c; k.a = Alfa(E_ARMA, c.a);
-    reinterpret_cast<DrawRect_t>(0x7283B0)(sprite, r, k);
-}
-static void __fastcall IconoXY(CSprite2d* sprite, void*, float x, float y, float w, float h, const CRGBA& c) {
-    CRGBA k = c; k.a = Alfa(E_ARMA, c.a);
-    reinterpret_cast<DrawXY_t>(0x7282C0)(sprite, x, y, w, h, k);
-}
-
-// Icono de arma con textura del modelo: se pinta con SetVertices + RwIm2DRenderPrimitive.
-typedef void (__cdecl *Vertices_t)(const CRect&, const CRGBA&, const CRGBA&, const CRGBA&, const CRGBA&);
-static void __cdecl IconoVertices(const CRect& r, const CRGBA& c1, const CRGBA& c2, const CRGBA& c3, const CRGBA& c4) {
-    CRGBA k1 = c1, k2 = c2, k3 = c3, k4 = c4;
-    k1.a = Alfa(E_ARMA, c1.a); k2.a = Alfa(E_ARMA, c2.a); k3.a = Alfa(E_ARMA, c3.a); k4.a = Alfa(E_ARMA, c4.a);
-    reinterpret_cast<Vertices_t>(0x727420)(r, k1, k2, k3, k4);
-}
-
 // ---- Radar: solo en el radar del HUD (el mapa del menú usa las mismas funciones) ----
 static unsigned char AlfaRadar(unsigned char a) { return DibujandoMapa() ? a : Alfa(E_RADAR, a); }
 
@@ -1434,18 +1411,14 @@ static void __cdecl RadarPoligono(float x1, float y1, float x2, float y2, float 
     reinterpret_cast<Poligono_t>(0x7285B0)(x1, y1, x2, y2, x3, y3, x4, y4, k);
 }
 
-// Iconos de arma con textura propia (todas menos el puño): gta-reversed,
-// CHud::DrawWeaponIcon, usa SetVertices con coordenadas de textura y
-// después RwIm2DRenderPrimitive. El puño usa CSprite2d::Draw.
-typedef void (__cdecl *VerticesUV_t)(const CRect&, const CRGBA&, const CRGBA&, const CRGBA&, const CRGBA&,
-                                     float, float, float, float, float, float, float, float);
-static void __cdecl IconoVerticesUV(const CRect& r, const CRGBA& c1, const CRGBA& c2, const CRGBA& c3, const CRGBA& c4,
-                                    float u1, float v1, float u2, float v2, float u3, float v3, float u4, float v4) {
-    CRGBA k1 = c1, k2 = c2, k3 = c3, k4 = c4;
-    k1.a = Alfa(E_ARMA, c1.a); k2.a = Alfa(E_ARMA, c2.a); k3.a = Alfa(E_ARMA, c3.a); k4.a = Alfa(E_ARMA, c4.a);
-    if (k1.a != 255) RwRenderStateSet(rwRENDERSTATEVERTEXALPHAENABLE, reinterpret_cast<void*>(TRUE));
-    reinterpret_cast<VerticesUV_t>(0x727710)(r, k1, k2, k3, k4, u1, v1, u2, v2, u3, v3, u4, v4);
-}
+// ---- Icono de arma ----
+// DrawPlayerInfo llama a CHud::DrawWeaponIcon(ped, x, y, alfa) con alfa =
+// 255.0 cargado con fld [0x859AAC] (operando en 0x58F8EA, volcado de F10).
+// Ese alfa lo usan el puño (CSprite2d::Draw) y los iconos con textura
+// (que no pasan por funciones E8 reconocibles); se apunta a un float propio.
+static const unsigned int OPERANDO_ALFA_ICONO = 0x58F8EA;
+static float alfaIcono = 255.0f;
+static unsigned int alfaIconoOriginal = 0;
 
 struct BusquedaDesvio {
     const char* nombre;
@@ -1465,11 +1438,6 @@ static BusquedaDesvio BUSQUEDAS_OPACIDAD[] = {
     { "municion: contorno",   0x5893B0, 0x589650, 0x719510, reinterpret_cast<const void*>(&ColorContorno<E_ARMA>), 0 },
     { "estrellas: color",     0x58D9A0, 0x58E020, 0x719430, reinterpret_cast<const void*>(&ColorTexto<E_ESTRELLAS>), 0 },
     { "estrellas: contorno",  0x58D9A0, 0x58E020, 0x719510, reinterpret_cast<const void*>(&ColorContorno<E_ESTRELLAS>), 0 },
-    { "icono: Draw (rect)",   0x58D7D0, 0x58D9A0, 0x728350, reinterpret_cast<const void*>(&IconoRect), 0 },
-    { "icono: Draw (rect2)", 0x58D7D0, 0x58D9A0, 0x7283B0, reinterpret_cast<const void*>(&IconoRect2), 0 },
-    { "icono: Draw (x, y)",   0x58D7D0, 0x58D9A0, 0x7282C0, reinterpret_cast<const void*>(&IconoXY), 0 },
-    { "icono: SetVertices",   0x58D7D0, 0x58D9A0, 0x727420, reinterpret_cast<const void*>(&IconoVertices), 0 },
-    { "icono: SetVertices UV",0x58D7D0, 0x58D9A0, 0x727710, reinterpret_cast<const void*>(&IconoVerticesUV), 0 },
     { "salud: barra",         0x589270, 0x5893B0, 0x728640, reinterpret_cast<const void*>(&BarraConAlfa<E_SALUD>), 0 },
     { "blindaje: barra",      0x5890A0, 0x589190, 0x728640, reinterpret_cast<const void*>(&BarraConAlfa<E_BLINDAJE>), 0 },
     { "oxigeno: barra",       0x589190, 0x589270, 0x728640, reinterpret_cast<const void*>(&BarraConAlfa<E_OXIGENO>), 0 },
@@ -1524,6 +1492,14 @@ static void InstalarOpacidad() {
             dir += 4;
         }
     }
+    // ---- Alfa del icono de arma: solo si es fld [puntero] con 255.0 ----
+    const unsigned char* op = reinterpret_cast<const unsigned char*>(OPERANDO_ALFA_ICONO - 2);
+    if (SePuedeLeer(OPERANDO_ALFA_ICONO - 2, 6) && op[0] == 0xD9 && op[1] == 0x05) {
+        unsigned int ptr = *reinterpret_cast<const unsigned int*>(OPERANDO_ALFA_ICONO);
+        if (SePuedeLeer(ptr, 4) && *reinterpret_cast<const float*>(ptr) == 255.0f &&
+            EscribirPuntero(OPERANDO_ALFA_ICONO, reinterpret_cast<unsigned int>(&alfaIcono)))
+            alfaIconoOriginal = ptr;
+    }
     opacidadInstalada = true;
 }
 
@@ -1531,6 +1507,10 @@ static void QuitarOpacidad() {
     if (!opacidadInstalada) return;
     for (int i = 0; i < numDesvios; i++) EscribirBytes(desvios[i].sitio + 1, desvios[i].original, 4);
     numDesvios = 0;
+    if (alfaIconoOriginal &&
+        *reinterpret_cast<const unsigned int*>(OPERANDO_ALFA_ICONO) == reinterpret_cast<unsigned int>(&alfaIcono))
+        EscribirPuntero(OPERANDO_ALFA_ICONO, alfaIconoOriginal);
+    alfaIconoOriginal = 0;
     opacidadInstalada = false;
 }
 
@@ -1548,6 +1528,8 @@ static void DiagnosticoOpacidad(FILE* f) {
             if (destino < 0x401000 || destino > 0x900000) continue;   // no parece una llamada
             fprintf(f, "  0x%06X -> 0x%06X\n", dir, destino);
         }
+    fprintf(f, "\nAlfa del icono de arma (0x%06X): %s, valor %.1f\n", OPERANDO_ALFA_ICONO,
+            alfaIconoOriginal ? "redirigido" : "sin redirigir", alfaIcono);
     fprintf(f, "\nSitios:\n");
     for (int i = 0; i < numDesvios; i++) fprintf(f, "  0x%06X  %s\n", desvios[i].sitio, desvios[i].nombre);
 }
@@ -1939,6 +1921,7 @@ public:
             // ---- Opacidad (menú F9); apagado = sin desvíos ----
             if (activo) InstalarOpacidad();
             else        QuitarOpacidad();
+            alfaIcono = 255.0f * PorcentajeOpacidad(E_ARMA) / 100.0f;
 
             if (!activo) {
                 puntoAntes = puntoLargo = false;

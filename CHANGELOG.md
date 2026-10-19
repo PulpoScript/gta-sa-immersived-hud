@@ -4,7 +4,14 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). A
 
 ## [Sin publicar]
 
-### 0.2.0-dev.9 — Opacidad de los iconos de arma con textura (sin probar)
+### 0.2.0-dev.10 — Opacidad del icono de arma por su alfa de llamada (sin probar)
+
+- El log de dev.9 mostró que `DrawWeaponIcon` no llama con `E8` a ninguna función de dibujo reconocible para los iconos con textura (solo el puño, con `CSprite2d::Draw`). En su lugar se cambia el alfa que recibe la función: `DrawPlayerInfo` lo carga con `fld [0x859AAC]` (= 255.0) en `0x58F8EA`; ese operando apunta ahora a un float propio (255 × opacidad). Sirve para el puño y para todas las armas. Se comprueba `D9 05` y el valor 255.0 antes de cambiarlo; F11 lo deshace.
+- Se quitan los desvíos del icono de dev.7–dev.9 (evita aplicar la opacidad dos veces al puño).
+
+### 0.2.0-dev.9 — Opacidad de los iconos de arma con textura (probado)
+
+- ❌ El icono con textura no cambiaba: `SetVertices` (`0x727710`) no se usa en `DrawWeaponIcon` (0 llamadas).
 
 - Los iconos de arma (salvo el puño) no cambiaban de opacidad: según gta-reversed (`CHud::DrawWeaponIcon`), se dibujan con `CSprite2d::SetVertices` con coordenadas de textura (`0x727710`) y `RwIm2DRenderPrimitive`; el puño usa `CSprite2d::Draw`. Esa llamada se redirige también, activando la mezcla de alfa si hace falta.
 - F10 lista todas las llamadas `E8` de `DrawWeaponIcon`, por si el icono se dibujara de otra forma.
