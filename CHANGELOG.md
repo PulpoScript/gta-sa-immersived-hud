@@ -4,6 +4,12 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). A
 
 ## [Sin publicar]
 
+### 0.1.0-dev.18 — Radar con objetivo de misión o destino (sin probar)
+
+- El radar también se ve mientras haya un **objetivo de misión** en el radar (marcador sin icono de coche, persona, objeto, punto o zona, visible en el radar y no de corto alcance) o un **destino propio** marcado en el mapa (icono 41). Se oculta 8 s después, como con los demás motivos.
+- Datos: `CRadar::ms_RadarTrace` (`0xBA86F0`, 175 marcadores, plugin-sdk). Los iconos fijos (tiendas, casas, inicio de misiones) no cuentan.
+- F10 anota los marcadores en uso (icono, tipo, visibilidad, corto alcance y color) para ajustar la regla si algo no encaja.
+
 ### 0.1.0-dev.17 — Diferencia de dinero (sin probar)
 
 - Debajo del dinero se ve lo ganado (`+250`, verde) o perdido (`-540`, rojo), con la misma letra, contorno y alineación que el dinero. Se suma mientras el dinero sigue en pantalla y se olvida cuando se oculta.

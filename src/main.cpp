@@ -1,6 +1,6 @@
 // #####################################################################
 //  Immersived HUD — plugin ASI para GTA San Andreas PC 1.0 US
-//  Versión: 0.1.0-dev.17 — diferencia de dinero (+250 / -540)
+//  Versión: 0.1.0-dev.18 — radar visible con objetivo de misión o destino
 //  Requiere: plugin-sdk (Plugin_SA) y un cargador de ASI.
 //  Repositorio: https://github.com/PulpoScript/gta-sa-immersived-hud
 // #####################################################################
@@ -42,6 +42,7 @@
 #include "CCamera.h"
 #include "CReplay.h"
 #include "CWeapon.h"
+#include "CRadar.h"
 #include <cstdio>
 #include <cstring>
 
@@ -50,7 +51,7 @@ using namespace plugin;
 // =====================================================================
 //  CONFIGURACIÓN
 // =====================================================================
-static const char* VERSION = "0.1.0-dev.17";
+static const char* VERSION = "0.1.0-dev.18";
 static const int   TECLA_ACTIVAR = VK_F11;
 static const int   TECLA_DIAGNOSTICO = VK_F10;
 static const int   TECLA_CONSULTA = VK_OEM_PERIOD;   // "." (no la del teclado numérico)
@@ -604,8 +605,9 @@ static void ActualizarPosiciones(CPed* ped) {
 //  - Dinero: 5 s tras un cambio.
 //  - Arma y munición: 5 s tras cambiar ranura, tipo o munición total.
 //  - Salud y blindaje: 5 s tras un cambio; fijas con salud < 25.
-//  - Radar: en vehículo, con nivel de búsqueda o esprintando; se oculta
-//    8 s después del último motivo.
+//  - Radar: en vehículo, con nivel de búsqueda, esprintando, con un
+//    objetivo de misión en el radar o con un destino marcado en el mapa;
+//    se oculta 8 s después del último motivo.
 //  - Hora: solo con la tecla "." (toque corto: 5 s).
 //  - Mantener "." 0,8 s: todo el HUD visible en el montaje compacto; al
 //    soltar, se oculta a los 3 s.
@@ -645,6 +647,30 @@ static void LeerArmas(CPed* ped, EstadoArmas& e) {
     }
 }
 
+// =====================================================================
+//  OBJETIVOS EN EL RADAR (CRadar::ms_RadarTrace, plugin-sdk: 0xBA86F0, 175)
+//  - Destino propio: marcador con el icono RADAR_SPRITE_WAYPOINT (41),
+//    el que pone el jugador en el mapa del menú (gta-reversed MenuManager).
+//  - Objetivo de misión: marcador sin icono (RADAR_SPRITE_NONE, el punto
+//    de color), visible en el radar, de coche, persona, objeto, punto o
+//    zona, y no de corto alcance. Los iconos fijos (tiendas, casas,
+//    inicio de misiones) tienen icono propio y no cuentan.
+// =====================================================================
+static int ContarObjetivos(int* destinos) {
+    int objetivos = 0;
+    *destinos = 0;
+    for (unsigned int i = 0; i < MAX_RADAR_TRACES; i++) {
+        const tRadarTrace& t = CRadar::ms_RadarTrace[i];
+        if (!t.m_bInUse) continue;
+        if (t.m_nRadarSprite == RADAR_SPRITE_WAYPOINT) { (*destinos)++; continue; }
+        if (t.m_nRadarSprite != RADAR_SPRITE_NONE || t.m_bShortRange) continue;
+        bool enRadar = t.m_nBlipDisplay == BLIP_DISPLAY_BLIP_ONLY || t.m_nBlipDisplay == BLIP_DISPLAY_BOTH;
+        bool tipo = t.m_nBlipType >= BLIP_CAR && t.m_nBlipType <= BLIP_CONTACTPOINT;
+        if (enRadar && tipo) objetivos++;
+    }
+    return objetivos;
+}
+
 // Detecta los eventos de este frame y reinicia el tiempo de cada elemento.
 static void DetectarEventos(CPed* ped, unsigned int ahora) {
     int dinero = Jugador().m_nMoney;
@@ -681,10 +707,12 @@ static void DetectarEventos(CPed* ped, unsigned int ahora) {
         tBarras = ahora;
     }
 
-    // ---- Radar: en vehículo, esprintando o con nivel de búsqueda ----
+    // ---- Radar: en vehículo, esprintando, con estrellas, objetivo o destino ----
     CWanted* buscado = FindPlayerWanted();
+    int destinos;
+    bool hayObjetivo = ContarObjetivos(&destinos) > 0 || destinos > 0;
     if (ped->bInVehicle || ped->m_nMoveState == PEDMOVE_SPRINT ||
-        (buscado && buscado->m_nWantedLevel > 0)) {
+        (buscado && buscado->m_nWantedLevel > 0) || hayObjetivo) {
         tRadar = ahora;
     }
 }
@@ -800,6 +828,18 @@ static bool EscribirDiagnostico() {
     fprintf(f, "hora: ocultar %d (bDrawClock %d)\n", ocultarHora, CHud::bDrawClock);
     fprintf(f, "radar: ocultar %d (bScriptDontDisplayRadar %d)\n", ocultarRadar, CHud::bScriptDontDisplayRadar);
     fprintf(f, "salud maxima: %d\n", Jugador().m_nMaxHealth);
+
+    // ---- Marcadores del radar en uso (para ajustar qué cuenta como objetivo) ----
+    int destinos;
+    int objetivos = ContarObjetivos(&destinos);
+    fprintf(f, "\nRadar: objetivos de mision %d, destinos propios %d\n", objetivos, destinos);
+    fprintf(f, "Marcadores en uso: indice | icono | tipo | visible | corto alcance | color\n");
+    for (unsigned int i = 0; i < MAX_RADAR_TRACES; i++) {
+        const tRadarTrace& t = CRadar::ms_RadarTrace[i];
+        if (!t.m_bInUse) continue;
+        fprintf(f, "  %3u | %2d | %d | %d | %d | %u\n", i, t.m_nRadarSprite, t.m_nBlipType,
+                t.m_nBlipDisplay, t.m_bShortRange, t.m_nColour);
+    }
 
     // ---- Contorno de la hora y el dinero ----
     fprintf(f, "\nContorno (push 2; call CFont::SetEdge 0x%06X)\n\n", FUNCION_SET_EDGE);

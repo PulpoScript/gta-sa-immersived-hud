@@ -33,6 +33,7 @@ Mientras una función está a medias, la versión lleva un sufijo con el número
 | `0.1.0-dev.15` | HUD dinámico (reglas del Modo 2), huecos que se cierran, compensación de salud máxima | ✅ Probado (se cambió la tecla ".") |
 | `0.1.0-dev.16` | Mantener "." muestra todo con la nueva distribución | ✅ Mundo libre · ⏳ falta probar en misiones |
 | `0.1.0-dev.17` | Diferencia de dinero debajo del dinero (+ verde / − rojo) | ⏳ Sin probar |
+| `0.1.0-dev.18` | Radar visible con objetivo de misión o destino propio | ⏳ Sin probar |
 | `0.1.0` | HUD dinámico completo | ⏳ Tras las pruebas en misiones |
 | `0.2.0` | Forma del radar: redondo, cuadrado y rectangular (investigado, sin empezar) | ⏳ |
 | `1.0.0` | Primera release pública | ⏳ |
