@@ -1,6 +1,6 @@
 // #####################################################################
 //  Immersived HUD — plugin ASI para GTA San Andreas PC 1.0 US
-//  Versión: 0.2.0-dev.11 — volcado del dibujo del icono de arma
+//  Versión: 0.2.0-dev.12 — opacidad de los iconos de arma con textura
 //  Requiere: plugin-sdk (Plugin_SA) y un cargador de ASI.
 //  Repositorio: https://github.com/PulpoScript/gta-sa-immersived-hud
 // #####################################################################
@@ -57,7 +57,7 @@ using namespace plugin;
 // =====================================================================
 //  CONFIGURACIÓN
 // =====================================================================
-static const char* VERSION = "0.2.0-dev.11";
+static const char* VERSION = "0.2.0-dev.12";
 static const int   TECLA_ACTIVAR = VK_F11;
 static const int   TECLA_DIAGNOSTICO = VK_F10;
 static const int   TECLA_CONSULTA = VK_OEM_PERIOD;   // "." (no la del teclado numérico)
@@ -1421,6 +1421,18 @@ static const unsigned int OPERANDO_ALFA_ICONO = 0x58F8EA;
 static float alfaIcono = 255.0f;
 static unsigned int alfaIconoOriginal = 0;
 
+// Iconos con textura: DrawWeaponIcon llama a CSprite::RenderOneXLUSprite
+// (enganchada por otro mod) con el alfa fijo: push 255 en 0x58D89A (volcado
+// de dev.11; el alfa recibido solo lo usa el puño). Se cambia ese inmediato.
+static const unsigned int PUSH_ALFA_TEXTURA = 0x58D89A;
+static bool alfaTexturaAplicado = false;
+static int alfaTexturaEscrito = 255;
+
+static void EscribirAlfaTextura(int a) {
+    if (!alfaTexturaAplicado || a == alfaTexturaEscrito) return;
+    if (EscribirBytes(PUSH_ALFA_TEXTURA + 1, reinterpret_cast<const unsigned char*>(&a), 4)) alfaTexturaEscrito = a;
+}
+
 struct BusquedaDesvio {
     const char* nombre;
     unsigned int inicio, fin;   // rango de la función del elemento
@@ -1501,6 +1513,11 @@ static void InstalarOpacidad() {
             EscribirPuntero(OPERANDO_ALFA_ICONO, reinterpret_cast<unsigned int>(&alfaIcono)))
             alfaIconoOriginal = ptr;
     }
+    static const unsigned char PUSH_255[5] = { 0x68, 0xFF, 0x00, 0x00, 0x00 };
+    if (SePuedeLeer(PUSH_ALFA_TEXTURA, 5) && memcmp(reinterpret_cast<const void*>(PUSH_ALFA_TEXTURA), PUSH_255, 5) == 0) {
+        alfaTexturaAplicado = true;
+        alfaTexturaEscrito = 255;
+    }
     opacidadInstalada = true;
 }
 
@@ -1512,6 +1529,8 @@ static void QuitarOpacidad() {
         *reinterpret_cast<const unsigned int*>(OPERANDO_ALFA_ICONO) == reinterpret_cast<unsigned int>(&alfaIcono))
         EscribirPuntero(OPERANDO_ALFA_ICONO, alfaIconoOriginal);
     alfaIconoOriginal = 0;
+    EscribirAlfaTextura(255);
+    alfaTexturaAplicado = false;
     opacidadInstalada = false;
 }
 
@@ -1531,6 +1550,8 @@ static void DiagnosticoOpacidad(FILE* f) {
         }
     fprintf(f, "\nAlfa del icono de arma (0x%06X): %s, valor %.1f\n", OPERANDO_ALFA_ICONO,
             alfaIconoOriginal ? "redirigido" : "sin redirigir", alfaIcono);
+    fprintf(f, "Alfa de los iconos con textura (push en 0x%06X): %s, valor %d\n", PUSH_ALFA_TEXTURA,
+            alfaTexturaAplicado ? "cambiado" : "sin cambiar", alfaTexturaEscrito);
     fprintf(f, "\nSitios:\n");
     for (int i = 0; i < numDesvios; i++) fprintf(f, "  0x%06X  %s\n", desvios[i].sitio, desvios[i].nombre);
 }
@@ -1923,6 +1944,7 @@ public:
             if (activo) InstalarOpacidad();
             else        QuitarOpacidad();
             alfaIcono = 255.0f * PorcentajeOpacidad(E_ARMA) / 100.0f;
+            EscribirAlfaTextura(255 * PorcentajeOpacidad(E_ARMA) / 100);
 
             if (!activo) {
                 puntoAntes = puntoLargo = false;

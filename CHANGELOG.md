@@ -4,7 +4,13 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). A
 
 ## [Sin publicar]
 
-### 0.2.0-dev.11 — Volcado del dibujo del icono de arma (diagnóstico)
+### 0.2.0-dev.12 — Opacidad de los iconos de arma con textura (sin probar)
+
+- El volcado de dev.11 muestra que los iconos con textura se dibujan con `CSprite::RenderOneXLUSprite` (la llamada de `0x58D8FD` va a otro mod que la engancha, por eso no aparecía) con el alfa fijo: `push 255` en `0x58D89A`. El alfa que recibe `DrawWeaponIcon` solo lo usa el puño (`CRGBA` en `0x58D978`, `CSprite2d::Draw` en `0x58D988`).
+- Ese inmediato se cambia a 255 × opacidad cuando cambia el valor; se comprueba `68 FF 00 00 00` antes y F11 lo devuelve a 255. Se mantiene el cambio de `0x58F8EA` para el puño.
+- F10 indica si el alfa de los iconos con textura se pudo cambiar.
+
+### 0.2.0-dev.11 — Volcado del dibujo del icono de arma (probado)
 
 - F10 vuelca `CHud::DrawWeaponIcon` (`0x58D7D0-0x58D9A0`) y la zona de `DrawPlayerInfo` que la llama (`0x58F880-0x58F960`), para ver cómo se dibujan los iconos con textura y de dónde sale su alfa. Se quita el volcado de `DrawBlips` (la "N" ya está resuelta).
 

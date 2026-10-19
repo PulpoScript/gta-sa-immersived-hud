@@ -49,7 +49,8 @@ Mientras una función está a medias, la versión lleva un sufijo con el número
 | `0.2.0-dev.8` | Opacidad del radar y del color del dinero | 🔁 Probado: los iconos de arma (salvo el puño) no cambiaban |
 | `0.2.0-dev.9` | Opacidad de los iconos de arma con textura | ❌ Probado: no cambiaba |
 | `0.2.0-dev.10` | Opacidad del icono de arma por el alfa que recibe `DrawWeaponIcon` | ❌ Probado: el icono con textura sigue opaco |
-| `0.2.0-dev.11` | Volcado de `DrawWeaponIcon` con F10 | ⏳ Sin probar |
+| `0.2.0-dev.11` | Volcado de `DrawWeaponIcon` con F10 | ✅ Probado |
+| `0.2.0-dev.12` | Opacidad de los iconos de arma con textura (alfa fijo de `RenderOneXLUSprite`) | ⏳ Sin probar |
 | `0.2.0` | Forma del radar elegible en el menú F9 (redondo / rectangular) | ⏳ |
 | `1.0.0` | Primera release pública | ⏳ |
 
