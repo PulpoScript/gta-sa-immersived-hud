@@ -1,19 +1,19 @@
 # Traspaso para la próxima sesión
 
-Pega este archivo (o su enlace) al empezar una sesión nueva con Claude.
+Pega este archivo (o su enlace) al empezar una sesión nueva con el asistente.
 
 ## Contexto
 
 - Plugin ASI (C++, plugin-sdk) para **GTA San Andreas PC 1.0 US**: HUD que aparece cuando hace falta y con elementos reubicados.
 - Viene del mod CLEO [gta-sa-hud-mod](https://github.com/PulpoScript/gta-sa-hud-mod) (prototipo con Modos 1 y 2). Allí está la investigación: `docs/INVESTIGACION.md`, `docs/MODO2.md` y la sección "Sin publicar" del CHANGELOG (direcciones de posición verificadas).
-- Claude no puede compilar ni ejecutar el juego: el autor compila, prueba y cuenta el resultado.
+- El asistente no puede compilar ni ejecutar el juego: el autor compila, prueba y cuenta el resultado.
 
 ## Cómo trabajar
 
 - Español. Un paso cada vez, esperando la confirmación del autor.
 - Respuestas cortas. Para cada prueba, una tabla con qué probar y qué esperar.
 - El autor descarga el código con `git pull` en `E:\dev\gta-sa-immersived-hud`.
-- **Commits en este repositorio: autor `TentaCode <128027722+PulpoScript@users.noreply.github.com>`, sin mencionar a Claude** (pedido del autor). Se sube directamente a `main`.
+- **Commits en este repositorio: autor `TentaCode <128027722+PulpoScript@users.noreply.github.com>`, sin mencionar al asistente** (pedido del autor). Nada del asistente en commits, código ni documentación. Se sube directamente a `main`.
 - No afirmar direcciones ni funciones sin verificarlas. Dar crédito a cada fuente en el README.
 
 ## Entorno del autor (verificado)
@@ -47,7 +47,7 @@ Pega este archivo (o su enlace) al empezar una sesión nueva con Claude.
 | Bucear, conducir, pilotar | Oxígeno y radar |
 | Tecla TAB a pie | Panel de estadísticas visible |
 
-## Herramientas de la sesión (Claude)
+## Herramientas de la sesión
 
 - Comprobación de sintaxis sin MSVC: clang 20 y mingw g++ contra plugin-sdk (`check.sh` en el directorio temporal de la sesión; reinstalar con `apt-get install -y g++-mingw-w64-i686 clang-20` y clonar plugin-sdk).
 - Fuente clave: [ReSA](https://github.com/pedrokilo/ReSA) (desensamblado de `DrawPlayerInfo` y `DrawWanted` 1.0 US).
