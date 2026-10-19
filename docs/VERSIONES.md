@@ -32,26 +32,26 @@ Mientras una función está a medias, la versión lleva un sufijo con el número
 | `0.1.0-dev.14` | Oxígeno abajo a la derecha | ✅ Probado |
 | `0.1.0-dev.15` | HUD dinámico (reglas del Modo 2), huecos que se cierran, compensación de salud máxima | ✅ Probado (se cambió la tecla ".") |
 | `0.1.0-dev.16` | Mantener "." muestra todo con la nueva distribución | ✅ Mundo libre · ⏳ falta probar en misiones |
-| `0.1.0-dev.17` | Diferencia de dinero debajo del dinero (+ verde / − rojo) | ⏳ Sin probar |
+| `0.1.0-dev.17` | Diferencia de dinero debajo del dinero (+ verde / − rojo) | ✅ Probado |
 | `0.1.0-dev.18` | Radar visible con objetivo de misión o destino propio | 🔁 Probada: el radar tardaba 8 s en ocultarse al quitar el destino |
-| `0.1.0-dev.19` | Menú de depuración (F9) con ajustes guardados en `.ini`; radar sin espera al quitar el destino | ⏳ Sin probar |
-| `0.1.0-dev.20` | Barra de resistencia (donde el oxígeno) | ⏳ Sin probar |
+| `0.1.0-dev.19` | Menú de depuración (F9) con ajustes guardados en `.ini`; radar sin espera al quitar el destino | ✅ Probado |
+| `0.1.0-dev.20` | Barra de resistencia (donde el oxígeno) | ✅ Probado |
 | `0.1.0-dev.21` | CJ quieto con el menú F9 abierto (opción por defecto) | ✅ Probado (el menú se salía de la pantalla) |
-| `0.1.0-dev.22` | El menú F9 cabe en pantalla y se desplaza | ⏳ Sin probar |
+| `0.1.0-dev.22` | El menú F9 cabe en pantalla y se desplaza | ✅ Probado |
 | `0.1.0` | HUD dinámico completo | ⏳ Tras las pruebas en misiones |
 | `0.2.0-dev.1` | Radar rectangular, paso 1: volcado del código del radar con F10 | ✅ Probado |
 | `0.2.0-dev.2` | Forma del radar en el menú F9: redondo, cuadrado, 3:2 y 16:9 | 🔁 Probado: la "N" sigue en círculo y el marco la tapa |
 | `0.2.0-dev.3` | Marco bajo los iconos; F10 identifica los mods que enganchan el radar | ✅ Probado (la "N" sigue en círculo) |
 | `0.2.0-dev.4` | Diagnóstico de la "N": volcado de `DrawBlips` y llamadas a `LimitRadarPoint` | ✅ Probado |
 | `0.2.0-dev.5` | La "N" sigue el borde del rectángulo | ✅ Probado |
-| `0.2.0-dev.6` | Iconos de corto alcance visibles en todo el rectángulo | ⏳ Sin probar |
+| `0.2.0-dev.6` | Iconos de corto alcance visibles en todo el rectángulo | ✅ Probado |
 | `0.2.0-dev.7` | Opacidad del HUD (global o por elemento) y menú F9 con subpáginas | 🔁 Probado: faltaban el radar y el color del dinero |
 | `0.2.0-dev.8` | Opacidad del radar y del color del dinero | 🔁 Probado: los iconos de arma (salvo el puño) no cambiaban |
 | `0.2.0-dev.9` | Opacidad de los iconos de arma con textura | ❌ Probado: no cambiaba |
 | `0.2.0-dev.10` | Opacidad del icono de arma por el alfa que recibe `DrawWeaponIcon` | ❌ Probado: el icono con textura sigue opaco |
 | `0.2.0-dev.11` | Volcado de `DrawWeaponIcon` con F10 | ✅ Probado |
 | `0.2.0-dev.12` | Opacidad de los iconos de arma con textura (alfa fijo de `RenderOneXLUSprite`) | 🔁 Probado: el puño no cambiaba |
-| `0.2.0-dev.13` | Opacidad del puño (llamada a `CSprite2d::Draw`) | ⏳ Sin probar |
+| `0.2.0-dev.13` | Opacidad del puño (llamada a `CSprite2d::Draw`) | ✅ Probado (puño e iconos con textura) |
 | `0.2.0` | Forma del radar elegible en el menú F9 (redondo / rectangular) | ⏳ |
 | `1.0.0` | Primera release pública | ⏳ |
 

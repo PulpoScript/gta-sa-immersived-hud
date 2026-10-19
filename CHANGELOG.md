@@ -4,7 +4,9 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). A
 
 ## [Sin publicar]
 
-### 0.2.0-dev.13 — Opacidad del puño (sin probar)
+### 0.2.0-dev.13 — Opacidad del puño (probado)
+
+- ✅ El puño y los iconos con textura cambian de opacidad.
 
 - El volcado muestra que el alfa que recibe `DrawWeaponIcon` es el del parpadeo del icono: `DrawPlayerInfo` lo limita a 0–255 y solo usa la constante 255.0 (`0x58F8EA`) cuando lo supera. Por eso cambiar esa constante (dev.10) no afectaba al puño. Se quita ese cambio y se vuelve a redirigir la llamada del puño a `CSprite2d::Draw` (`0x58D988`), como en dev.7–dev.9.
 - Los iconos con textura siguen con el cambio del `push 255` de dev.12.
@@ -57,7 +59,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). A
 - El radar no tiene opacidad todavía (su mapa usa un color fijo interno).
 - **Menú F9 con subpáginas**: General, Elementos (modo), Tiempos, Radar y Opacidad. Intro entra, Retroceso o "< Volver" regresa. Las claves del `.ini` no cambian.
 
-### 0.2.0-dev.6 — Iconos de corto alcance en todo el rectángulo (sin probar)
+### 0.2.0-dev.6 — Iconos de corto alcance en todo el rectángulo (probado)
 
 - Los iconos de corto alcance (tiendas, bares...) desaparecían dentro del rectángulo pero fuera del círculo de radio 1: el juego solo los dibuja si la distancia que devuelve `LimitRadarPoint` es ≤ 1 (gta-reversed). En el rectángulo, la función devuelve ahora la distancia rectangular (≤ 1 = dentro del rectángulo).
 
@@ -106,7 +108,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). A
 - Plan (investigado en gta-reversed): el mapa de cada sección se transforma dentro de `DrawRadarSection` sin llamar a una función sustituible, así que el rectángulo se hará con el mismo zoom en ambos ejes, más mapa a los lados y un recorte rectangular (`ClipRadarPoly`). `TransformRadarPointToScreenSpace` no puede sustituirse (quien la llama espera `EDX` intacto): solo se redirigirán sus constantes. El aro son 4 llamadas `thiscall` a `CSprite2d::Draw`: se redirigirán a una función vacía compatible.
 - Se elegirá en el menú F9 ("Forma del radar"), con Redondo por defecto.
 
-### 0.1.0-dev.22 — El menú F9 cabe en pantalla (sin probar)
+### 0.1.0-dev.22 — El menú F9 cabe en pantalla (probado)
 
 - El menú empieza más arriba (justo debajo del cuadro de ayuda) y, si no caben todas las opciones, la lista se desplaza con la selección. El pie indica si hay más opciones arriba o abajo.
 
@@ -117,14 +119,14 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). A
 - Nueva opción del menú F9, **"CJ quieto con el menu"** (activada por defecto): mientras el menú está abierto, CJ no responde a los controles, así que las flechas solo mueven el menú.
 - Técnica: bit propio (`0x8000`) en `CPad::DisablePlayerControls` (plugin-sdk, `CPad + 0x10E`), el indicador con el que el juego ignora los controles del jugador. Se pone y se quita sin tocar los valores de las misiones.
 
-### 0.1.0-dev.20 — Barra de resistencia (sin probar)
+### 0.1.0-dev.20 — Barra de resistencia (probado)
 
 - Nueva barra de **resistencia** (lo que CJ puede esprintar antes de cansarse), abajo a la derecha, donde el oxígeno, con el mismo tamaño y borde fino. Color dorado. Si el oxígeno también se ve, la resistencia va justo encima.
 - Dato: `CPlayerData::m_fTimeCanRun`, de −150 (agotado) al máximo `CStats::GetFatAndMuscleModifier(STAT_MOD_TIME_CAN_RUN)`, que crece con la estadística de resistencia (gta-reversed, `CPlayerPed::HandleSprintEnergy`).
 - Dinámica: visible mientras no está llena y 3 s después de llenarse. No se muestra con resistencia infinita (truco o adrenalina).
 - Menú F9: modo de la resistencia (dinámico / siempre / nunca) y su tiempo.
 
-### 0.1.0-dev.19 — Menú de depuración y radar sin espera al quitar el destino (sin probar)
+### 0.1.0-dev.19 — Menú de depuración y radar sin espera al quitar el destino (probado)
 
 - **Corregido:** al quitar el destino del mapa (o terminar el objetivo), el radar se ocultaba 8 s después. Ahora el objetivo de misión y el destino propio cuentan **solo mientras existen**; los demás motivos (vehículo, esprintar, estrellas) mantienen su espera.
 - **Menú de depuración (F9)**, temporal hasta la versión final. Flechas arriba / abajo para elegir, izquierda / derecha para cambiar, Intro para restaurar los valores por defecto.
@@ -141,7 +143,7 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). A
 - Datos: `CRadar::ms_RadarTrace` (`0xBA86F0`, 175 marcadores, plugin-sdk). Los iconos fijos (tiendas, casas, inicio de misiones) no cuentan.
 - F10 anota los marcadores en uso (icono, tipo, visibilidad, corto alcance y color) para ajustar la regla si algo no encaja.
 
-### 0.1.0-dev.17 — Diferencia de dinero (sin probar)
+### 0.1.0-dev.17 — Diferencia de dinero (probado)
 
 - Debajo del dinero se ve lo ganado (`+250`, verde) o perdido (`-540`, rojo), con la misma letra, contorno y alineación que el dinero. Se suma mientras el dinero sigue en pantalla y se olvida cuando se oculta.
 - La fila ocupa su sitio en la columna: el blindaje y la salud bajan mientras se ve.
