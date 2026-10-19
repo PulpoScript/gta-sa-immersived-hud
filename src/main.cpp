@@ -511,28 +511,21 @@ static void Poner(Parche& p, bool oculto) {
 }
 
 // ---- Hora y radar: indicadores del juego (CHud::bDrawClock, CHud::bScriptDontDisplayRadar) ----
-// Los scripts también los cambian. Al ocultar se reafirma en cada frame
-// (una partida cargada los reinicia); al mostrar solo se deshace lo que
-// cambió el plugin.
-static bool horaOcultaPorPlugin = false;
-static bool radarOcultoPorPlugin = false;
+// Las misiones también los usan. Para que nunca vean el cambio del
+// plugin, solo se cambian mientras se dibuja el HUD (drawHudEvent
+// before) y se devuelven justo después (after), como el borde de las
+// barras. En gameProcessEvent solo se decide si hay que ocultarlos.
+static bool ocultarHora = false, ocultarRadar = false;   // decisión de este frame
+static bool horaQuitada = false, radarQuitado = false;   // cambiados en el dibujo actual
 
-static void PonerHora(bool oculta) {
-    if (oculta) {
-        if (CHud::bDrawClock) { CHud::bDrawClock = false; horaOcultaPorPlugin = true; }
-    } else if (horaOcultaPorPlugin) {
-        CHud::bDrawClock = true;
-        horaOcultaPorPlugin = false;
-    }
+static void OcultarIndicadoresEnDibujo() {
+    if (ocultarHora && CHud::bDrawClock) { CHud::bDrawClock = false; horaQuitada = true; }
+    if (ocultarRadar && !CHud::bScriptDontDisplayRadar) { CHud::bScriptDontDisplayRadar = true; radarQuitado = true; }
 }
 
-static void PonerRadar(bool oculto) {
-    if (oculto) {
-        if (!CHud::bScriptDontDisplayRadar) { CHud::bScriptDontDisplayRadar = true; radarOcultoPorPlugin = true; }
-    } else if (radarOcultoPorPlugin) {
-        CHud::bScriptDontDisplayRadar = false;
-        radarOcultoPorPlugin = false;
-    }
+static void DevolverIndicadores() {
+    if (horaQuitada)  { CHud::bDrawClock = true; horaQuitada = false; }
+    if (radarQuitado) { CHud::bScriptDontDisplayRadar = false; radarQuitado = false; }
 }
 
 // =====================================================================
@@ -550,10 +543,10 @@ static void ActualizarPosiciones(CPed* ped) {
     float colX = hayIcono ? COLUMNA_X_CON_ICONO : COLUMNA_X_SIN_ICONO;
     float y = COLUMNA_Y_INICIO;
 
-    // ---- Hora ----
+    // ---- Hora (se dibuja si el juego la tiene activada y el plugin no la oculta) ----
     horaX.valor = colX;
     horaY.valor = y;
-    if (CHud::bDrawClock) y += PASO_HORA;
+    if (CHud::bDrawClock && !ocultarHora) y += PASO_HORA;
 
     // ---- Dinero ----
     dineroX.valor = colX;
@@ -605,7 +598,7 @@ static bool Visible(unsigned int ahora, unsigned int desde, unsigned int duracio
 
 // ---- Valores anteriores para detectar cambios ----
 struct EstadoArmas {
-    unsigned char ranura;
+    unsigned int ranura;          // unsigned int: sin bytes de relleno para memcmp
     unsigned int tipo[13];
     unsigned int municion[13];
 };
@@ -768,9 +761,8 @@ static bool EscribirDiagnostico() {
                 fprintf(f, " %02X", reinterpret_cast<const unsigned char*>(p->direccion)[i]);
         fprintf(f, "\n");
     }
-    fprintf(f, "hora oculta por el plugin: %d (bDrawClock %d)\n", horaOcultaPorPlugin, CHud::bDrawClock);
-    fprintf(f, "radar oculto por el plugin: %d (bScriptDontDisplayRadar %d)\n",
-            radarOcultoPorPlugin, CHud::bScriptDontDisplayRadar);
+    fprintf(f, "hora: ocultar %d (bDrawClock %d)\n", ocultarHora, CHud::bDrawClock);
+    fprintf(f, "radar: ocultar %d (bScriptDontDisplayRadar %d)\n", ocultarRadar, CHud::bScriptDontDisplayRadar);
     fprintf(f, "salud maxima: %d\n", Jugador().m_nMaxHealth);
 
     // ---- Contorno de la hora y el dinero ----
@@ -807,14 +799,14 @@ static bool EscribirDiagnostico() {
 // =====================================================================
 //  PLUGIN
 // =====================================================================
-static bool activo = true;   // el plugin empieza encendido
+static bool activo = true;      // el plugin empieza encendido
+static bool reinicio = false;   // partida cargada o nueva (Events::reInitGameEvent)
 
 // Deja el juego como de fábrica: posiciones, tamaños y nada oculto.
 static void TodoDeFabrica() {
     QuitarMontaje();
     for (Parche* p : PARCHES) Mostrar(*p);
-    PonerHora(false);
-    PonerRadar(false);
+    ocultarHora = ocultarRadar = false;
 }
 
 class ImmersivedHud {
@@ -834,9 +826,11 @@ public:
             unsigned int ahora = CTimer::m_snTimeInMilliseconds;
             CPed* ped = FindPlayerPed();
 
-            // ---- Inicio o partida cargada (el reloj del juego vuelve atrás) ----
-            if (primerFrame || ahora < ahoraAntes) {
+            // ---- Inicio o partida cargada: evento del juego o salto del reloj ----
+            // (el reloj avanza como mucho 300 ms por frame: un salto mayor es una carga)
+            if (primerFrame || reinicio || ahora < ahoraAntes || ahora - ahoraAntes > 1000) {
                 primerFrame = false;
+                reinicio = false;
                 datosIniciados = false;
                 MostrarTodo3s(ahora);
             }
@@ -901,18 +895,25 @@ public:
             Poner(parcheMunicion, ocultarArma);
             Poner(parcheSalud, ocultarBarras);
             Poner(parcheBlindaje, ocultarBarras);
-            PonerHora(!Visible(ahora, tHora, TIEMPO_VISIBLE));
-            PonerRadar(!Visible(ahora, tRadar, TIEMPO_RADAR));
+            ocultarHora  = !Visible(ahora, tHora, TIEMPO_VISIBLE);
+            ocultarRadar = !Visible(ahora, tRadar, TIEMPO_RADAR);
 
             ActualizarPosiciones(ped);
         };
 
-        // ---- Borde de las barras: solo mientras se dibuja el HUD ----
+        // ---- Partida cargada o nueva: todo visible 3 s ----
+        Events::reInitGameEvent += [] {
+            reinicio = true;
+        };
+
+        // ---- Solo mientras se dibuja el HUD: borde de las barras, hora y radar ----
         Events::drawHudEvent.before += [] {
             if (montajeActivo) AplicarBordes();
+            OcultarIndicadoresEnDibujo();
         };
         Events::drawHudEvent.after += [] {
             QuitarBordes();
+            DevolverIndicadores();
         };
     }
 } immersivedHud;

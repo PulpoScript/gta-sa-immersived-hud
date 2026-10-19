@@ -31,8 +31,9 @@ Necesitas Visual Studio con el compilador **MSVC v143** y [plugin-sdk](https://g
 
 | Tecla | Acción |
 |---|---|
-| F11 | Enciende / apaga el plugin (de momento cambia al montaje compacto, todavía fijo) |
-| F10 | Guarda `ImmersivedHud.log` (diagnóstico de direcciones, solo lectura) |
+| . (punto) | Toque corto: la hora 5 s. Mantener 0,8 s: todo el HUD en su posición de fábrica; al soltar, todo visible 3 s |
+| F11 | Apaga / enciende el plugin (empieza encendido). Apagado: HUD de fábrica |
+| F10 | Guarda `ImmersivedHud.log` (diagnóstico, solo lectura) |
 
 ## Compatibilidad
 
@@ -41,7 +42,10 @@ Necesitas Visual Studio con el compilador **MSVC v143** y [plugin-sdk](https://g
 ## Créditos
 
 - [plugin-sdk](https://github.com/DK22Pac/plugin-sdk) (DK22Pac y colaboradores): clases y direcciones del juego.
-- [gta-reversed](https://github.com/gta-reversed/gta-reversed): posiciones de fábrica del HUD.
+- [gta-reversed](https://github.com/gta-reversed/gta-reversed): posiciones de fábrica del HUD y funciones `CHud::Draw`, `DrawBarChart` y `GetYPosBasedOnHealth`.
+- [ReSA](https://github.com/pedrokilo/ReSA) (pedrokilo): desensamblado de `CHud::DrawPlayerInfo` y `CHud::DrawWanted` (1.0 US), con el desplazamiento por salud máxima de cada elemento.
+- [Widescreen Fix](https://github.com/ThirteenAG/WidescreenFixesPack) (ThirteenAG): técnica de redirigir el puntero de cada instrucción a un float propio.
+- Silent (GTAForums): truco de ocultar el dinero quitando la llamada a `CFont::PrintString`.
 
 ## Aviso legal
 

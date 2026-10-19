@@ -4,6 +4,17 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). A
 
 ## [Sin publicar]
 
+### 0.1.0-dev.15 — HUD dinámico (candidata a 0.1.0, sin probar)
+
+- **Comportamiento** (mismas reglas que el Modo 2 del mod CLEO): dinero 5 s tras un cambio; arma y munición 5 s tras un cambio de ranura, tipo o munición; salud y blindaje 5 s tras un cambio y fijas con salud < 25; radar en vehículo, con nivel de búsqueda o esprintando, y se oculta 8 s después; hora solo con ".".
+- **Tecla "."**: toque corto, hora 5 s; mantener 0,8 s, todo el HUD en su posición de fábrica; al soltar, todo visible 3 s.
+- **Huecos que se cierran**: lo oculto deja su sitio, los de debajo suben y, sin icono, la columna se pega a la esquina. Las estrellas van debajo de la columna (y del icono si se ve).
+- **Salud máxima**: el juego sube dinero (12), estrellas (12), salud (10), blindaje (3) y oxígeno (6) si la salud máxima es menor de 101 (ReSA, desensamblado de `DrawPlayerInfo` y `DrawWanted`). Se compensa en cada frame para que nada se mueva al subirla.
+- **Ocultar**: parches `ret` y NOP probados en el mod CLEO (`0x58D7D0`, `0x5893B0`, `0x589270`, `0x5890A0`, `0x58F607`), con comprobación de los bytes originales. La hora (`bDrawClock`) y el radar (`bScriptDontDisplayRadar`) solo se cambian mientras se dibuja el HUD, para no interferir con las misiones.
+- El plugin **empieza encendido**; F11 lo apaga (HUD de fábrica). Al activarlo, al empezar y al cargar partida (`reInitGameEvent` o salto del reloj), todo se ve 3 s.
+- Corregido: la búsqueda del tamaño del blindaje miraba `DrawTripSkip` (`0x58A160`) en vez de `RenderArmorBar` (`0x5890A0`). No llegó a cambiar nada; se quita y el blindaje queda de fábrica (62 × 9), como se aprobó.
+- Verificado antes de subir: compilación de sintaxis con clang 20 y mingw g++ contra plugin-sdk, y revisión independiente (API, estados, memoria y posiciones).
+
 ### 0.1.0-dev.14 — Oxígeno abajo a la derecha (probado)
 
 - ✅ El oxígeno aparece abajo a la derecha: `0x58F100` es la Y del oxígeno (valor de fábrica sin anotar).
