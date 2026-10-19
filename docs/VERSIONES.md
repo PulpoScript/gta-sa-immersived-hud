@@ -43,7 +43,8 @@ Mientras una función está a medias, la versión lleva un sufijo con el número
 | `0.2.0-dev.2` | Forma del radar en el menú F9: redondo, cuadrado, 3:2 y 16:9 | 🔁 Probado: la "N" sigue en círculo y el marco la tapa |
 | `0.2.0-dev.3` | Marco bajo los iconos; F10 identifica los mods que enganchan el radar | ✅ Probado (la "N" sigue en círculo) |
 | `0.2.0-dev.4` | Diagnóstico de la "N": volcado de `DrawBlips` y llamadas a `LimitRadarPoint` | ✅ Probado |
-| `0.2.0-dev.5` | La "N" sigue el borde del rectángulo | ⏳ Sin probar |
+| `0.2.0-dev.5` | La "N" sigue el borde del rectángulo | ✅ Probado |
+| `0.2.0-dev.6` | Iconos de corto alcance visibles en todo el rectángulo | ⏳ Sin probar |
 | `0.2.0` | Forma del radar elegible en el menú F9 (redondo / rectangular) | ⏳ |
 | `1.0.0` | Primera release pública | ⏳ |
 

@@ -1,6 +1,6 @@
 // #####################################################################
 //  Immersived HUD — plugin ASI para GTA San Andreas PC 1.0 US
-//  Versión: 0.2.0-dev.5 — la "N" del radar sigue el borde del rectángulo
+//  Versión: 0.2.0-dev.6 — iconos de corto alcance en todo el rectángulo
 //  Requiere: plugin-sdk (Plugin_SA) y un cargador de ASI.
 //  Repositorio: https://github.com/PulpoScript/gta-sa-immersived-hud
 // #####################################################################
@@ -57,7 +57,7 @@ using namespace plugin;
 // =====================================================================
 //  CONFIGURACIÓN
 // =====================================================================
-static const char* VERSION = "0.2.0-dev.5";
+static const char* VERSION = "0.2.0-dev.6";
 static const int   TECLA_ACTIVAR = VK_F11;
 static const int   TECLA_DIAGNOSTICO = VK_F10;
 static const int   TECLA_CONSULTA = VK_OEM_PERIOD;   // "." (no la del teclado numérico)
@@ -1142,13 +1142,16 @@ static int __cdecl RecorteRectangular(CVector2D* salida, const CVector2D* entrad
 }
 
 // ---- Iconos lejanos al borde del rectángulo (en el mapa del menú, la anterior) ----
+// Devuelve la distancia "rectangular" (<= 1 = dentro del rectángulo). El
+// juego solo la usa para decidir si dibuja los iconos de corto alcance
+// (tiendas, bares...: solo si <= 1; gta-reversed, DrawEntityBlip /
+// DrawCoordBlip). Con la magnitud circular, desaparecían en las esquinas.
 static float __cdecl LimiteRectangular(CVector2D& p) {
     if (DibujandoMapa() || !radarAplicado) return limiteAnterior(p);
-    float magnitud = sqrtf(p.x * p.x + p.y * p.y);
     float fx = fabsf(p.x) / radarAncho, fy = fabsf(p.y);
     float f = fx > fy ? fx : fy;
     if (f > 1.0f) { p.x /= f; p.y /= f; }
-    return magnitud;
+    return f;
 }
 
 static void DibujarMarcoRadar();

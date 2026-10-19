@@ -4,7 +4,14 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). A
 
 ## [Sin publicar]
 
-### 0.2.0-dev.5 — La "N" sigue el borde del rectángulo (sin probar)
+### 0.2.0-dev.6 — Iconos de corto alcance en todo el rectángulo (sin probar)
+
+- Los iconos de corto alcance (tiendas, bares...) desaparecían dentro del rectángulo pero fuera del círculo de radio 1: el juego solo los dibuja si la distancia que devuelve `LimitRadarPoint` es ≤ 1 (gta-reversed). En el rectángulo, la función devuelve ahora la distancia rectangular (≤ 1 = dentro del rectángulo).
+
+### 0.2.0-dev.5 — La "N" sigue el borde (probado)
+
+- ✅ La "N" recorre el borde del rectángulo.
+- ❌ El icono de la copa (corto alcance) desaparecía dentro del rectángulo.
 
 - La "N" se colocaba a √2 del centro: en el redondo siempre queda fuera del círculo y va al borde, pero en el rectángulo cabe dentro y giraba en un círculo. La llamada de `DrawBlips` a `LimitRadarPoint` para la "N" (`0x588161`) se redirige a una función que la lleva siempre al borde del rectángulo. Se comprueba que sea `E8` hacia `0x5832F0` antes de cambiarla y se deshace al volver a redondo.
 
