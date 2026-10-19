@@ -32,6 +32,8 @@
 #include "CHud.h"
 #include "CWorld.h"
 #include "CTimer.h"
+#include "CPad.h"
+#include "CGameLogic.h"
 #include <cstdio>
 #include <cstring>
 
@@ -520,7 +522,16 @@ static bool horaQuitada = false, radarQuitado = false;   // cambiados en el dibu
 
 static void OcultarIndicadoresEnDibujo() {
     if (ocultarHora && CHud::bDrawClock) { CHud::bDrawClock = false; horaQuitada = true; }
-    if (ocultarRadar && !CHud::bScriptDontDisplayRadar) { CHud::bScriptDontDisplayRadar = true; radarQuitado = true; }
+
+    // El mismo indicador oculta el panel de estadísticas (a pie, en lugar
+    // del radar) y el aviso de saltar trayecto: si están en pantalla, no se toca.
+    CPed* ped = FindPlayerPed();
+    bool estadisticas = ped && !FindPlayerVehicle() && CPad::GetPad(0)->GetDisplayVitalStats(ped);
+    bool saltarTrayecto = CGameLogic::SkipCanBeActivated();
+    if (ocultarRadar && !estadisticas && !saltarTrayecto && !CHud::bScriptDontDisplayRadar) {
+        CHud::bScriptDontDisplayRadar = true;
+        radarQuitado = true;
+    }
 }
 
 static void DevolverIndicadores() {
