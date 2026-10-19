@@ -45,7 +45,8 @@ Mientras una función está a medias, la versión lleva un sufijo con el número
 | `0.2.0-dev.4` | Diagnóstico de la "N": volcado de `DrawBlips` y llamadas a `LimitRadarPoint` | ✅ Probado |
 | `0.2.0-dev.5` | La "N" sigue el borde del rectángulo | ✅ Probado |
 | `0.2.0-dev.6` | Iconos de corto alcance visibles en todo el rectángulo | ⏳ Sin probar |
-| `0.2.0-dev.7` | Opacidad del HUD (global o por elemento) y menú F9 con subpáginas | ⏳ Sin probar |
+| `0.2.0-dev.7` | Opacidad del HUD (global o por elemento) y menú F9 con subpáginas | 🔁 Probado: faltaban el radar y el color del dinero |
+| `0.2.0-dev.8` | Opacidad del radar y del color del dinero | ⏳ Sin probar |
 | `0.2.0` | Forma del radar elegible en el menú F9 (redondo / rectangular) | ⏳ |
 | `1.0.0` | Primera release pública | ⏳ |
 

@@ -4,7 +4,17 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). A
 
 ## [Sin publicar]
 
-### 0.2.0-dev.7 — Opacidad del HUD y menú F9 con subpáginas (sin probar)
+### 0.2.0-dev.8 — Opacidad del radar y del color del dinero (sin probar)
+
+- **Radar** en F9 > Opacidad (también lo cubre el modo Global). Solo afecta al radar del HUD; el mapa del menú de pausa no cambia. Se redirigen las llamadas de dibujo de: mapa (`DrawRadarSection`, `SetVertices` `0x727890`; se activa la mezcla de alfa porque el juego dibuja el mapa sin ella), zonas de bandas (`DrawAreaOnRadar`), iconos (`DrawRadarSprite`), flecha del jugador (`DrawRotatingRadarSprite`), puntos de objetivo (`ShowRadarTrace` / `ShowRadarTraceWithHeight`) y aro o marco rectangular.
+- Las 4 llamadas del aro (`0x58A823`, `0x58A8CD`, `0x58A977`, `0x58AA25`) se redirigen ahora siempre a una única función: con radar redondo dibuja el aro con la opacidad del radar; con rectangular, el marco.
+- **Dinero**: el log de dev.7 mostró 0 llamadas de color en `0x58F500-0x58F6A0`. La búsqueda empieza ahora tras el último `CFont::PrintString` (`0x71A700`) anterior al del dinero (`0x58F607`).
+- F10 lista también la dirección de cada llamada redirigida.
+
+### 0.2.0-dev.7 — Opacidad del HUD y menú F9 con subpáginas (probado)
+
+- ✅ Menú con subpáginas; opacidad de hora, munición, estrellas, icono y barras (F10: llamadas encontradas).
+- ❌ Faltaba el radar y el color del dinero (0 llamadas encontradas).
 
 - **Opacidad** (F9 > Opacidad): modo **Global** (un % para todo el HUD) o **Por elemento** (hora, dinero, arma y munición, salud, blindaje, oxígeno, resistencia y estrellas). En modo Global las opciones por elemento se ven en gris y no se pueden elegir. Pasos de 5 %; se guarda en `ImmersivedHud.ini`.
 - Funcionamiento: dentro de la función de cada elemento, las llamadas `E8` a `CFont::SetColor` (`0x719430`), `CFont::SetDropColor` (`0x719510`), `CSprite2d::Draw` (`0x728350`, `0x7283B0`, `0x7282C0`), `CSprite2d::SetVertices` (`0x727420`) y `CSprite2d::DrawBarChart` (`0x728640`) se redirigen a funciones propias que multiplican el alfa y llaman a la original. Solo se cambia una llamada si apunta a la función esperada; F11 lo deshace. La diferencia de dinero usa la opacidad del dinero.

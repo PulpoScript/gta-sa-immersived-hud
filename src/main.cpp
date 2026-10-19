@@ -1,6 +1,6 @@
 // #####################################################################
 //  Immersived HUD — plugin ASI para GTA San Andreas PC 1.0 US
-//  Versión: 0.2.0-dev.7 — opacidad del HUD y menú F9 con subpáginas
+//  Versión: 0.2.0-dev.8 — opacidad del radar y del color del dinero
 //  Requiere: plugin-sdk (Plugin_SA) y un cargador de ASI.
 //  Repositorio: https://github.com/PulpoScript/gta-sa-immersived-hud
 // #####################################################################
@@ -57,7 +57,7 @@ using namespace plugin;
 // =====================================================================
 //  CONFIGURACIÓN
 // =====================================================================
-static const char* VERSION = "0.2.0-dev.7";
+static const char* VERSION = "0.2.0-dev.8";
 static const int   TECLA_ACTIVAR = VK_F11;
 static const int   TECLA_DIAGNOSTICO = VK_F10;
 static const int   TECLA_CONSULTA = VK_OEM_PERIOD;   // "." (no la del teclado numérico)
@@ -70,7 +70,7 @@ static const unsigned int PULSACION_LARGA = 800;   // ms para que "." muestre to
 // =====================================================================
 enum Modo { MODO_DINAMICO = 0, MODO_SIEMPRE = 1, MODO_NUNCA = 2 };
 enum FormaRadar { RADAR_REDONDO = 0, RADAR_CUADRADO = 1, RADAR_3_2 = 2, RADAR_16_9 = 3 };
-enum Elemento { E_HORA, E_DINERO, E_ARMA, E_SALUD, E_BLINDAJE, E_OXIGENO, E_RESISTENCIA, E_ESTRELLAS, NUM_ELEMENTOS };
+enum Elemento { E_HORA, E_DINERO, E_ARMA, E_SALUD, E_BLINDAJE, E_OXIGENO, E_RESISTENCIA, E_ESTRELLAS, E_RADAR, NUM_ELEMENTOS };
 
 struct Ajustes {
     int montaje;            // 1 = montaje compacto, 0 = posiciones de fábrica
@@ -84,7 +84,7 @@ struct Ajustes {
     int formaRadar;         // FormaRadar
     int opacidadModo;       // 0 = global, 1 = por elemento
     int opacidadGlobal;     // %
-    int opacidad[8];        // % por elemento (Elemento)
+    int opacidad[NUM_ELEMENTOS];   // % por elemento (Elemento)
 };
 
 static const Ajustes AJUSTES_FABRICA = {
@@ -97,7 +97,7 @@ static const Ajustes AJUSTES_FABRICA = {
     1,
     0,
     0, 100,
-    { 100, 100, 100, 100, 100, 100, 100, 100 },
+    { 100, 100, 100, 100, 100, 100, 100, 100, 100 },
 };
 
 static Ajustes cfg = AJUSTES_FABRICA;
@@ -1123,7 +1123,7 @@ static bool radarDibujado = false;       // el mapa del radar se dibujó en este
 
 typedef float (__cdecl *FuncLimite)(CVector2D&);
 static FuncLimite limiteAnterior = nullptr;      // la del otro mod o un trampolín a la original
-static unsigned char limiteBytes[5], recorteBytes[5], aroBytes[4][4], norteBytes[4];
+static unsigned char limiteBytes[5], recorteBytes[5], norteBytes[4];
 static bool norteAplicado = false;
 static unsigned char* trampolin = nullptr;
 
@@ -1189,11 +1189,16 @@ static float __cdecl LimiteNorte(CVector2D& p) {
 }
 
 // ---- Sustituto de CSprite2d::Draw para el aro (thiscall con 2 argumentos) ----
-// En lugar del cuarto de aro, dibuja el marco rectangular. Ocurre dentro de
+// Rectangular: en lugar del cuarto de aro, dibuja el marco. Ocurre dentro de
 // CHud::DrawRadar, antes de los iconos, así que el marco queda debajo de
 // ellos (como el aro original). Las 4 llamadas dibujan el mismo marco.
-static void __fastcall SinAro(void*, void*, const void*, const void*) {
-    DibujarMarcoRadar();
+// Redondo: dibuja el cuarto de aro con la opacidad del radar. Las llamadas
+// se redirigen junto con la opacidad (OPACIDAD DEL HUD), no aquí.
+typedef void (__thiscall *DrawRect_t)(CSprite2d*, const CRect&, const CRGBA&);
+static void __fastcall Aro(CSprite2d* sprite, void*, const CRect& r, const CRGBA& c) {
+    if (radarAplicado) { DibujarMarcoRadar(); return; }
+    CRGBA k = c; k.a = Alfa(E_RADAR, c.a);
+    reinterpret_cast<DrawRect_t>(SPRITE_DRAW)(sprite, r, k);
 }
 
 static void EscribirSalto(unsigned int desde, const void* hasta) {
@@ -1237,7 +1242,8 @@ static bool ComprobarRadar() {
     for (unsigned int llamada : LLAMADAS_ARO) {
         const unsigned char* c = reinterpret_cast<const unsigned char*>(llamada);
         if (c[0] != 0xE8) return false;
-        if (llamada + 5 + *reinterpret_cast<const int*>(c + 1) != SPRITE_DRAW) return false;
+        unsigned int destino = llamada + 5 + *reinterpret_cast<const int*>(c + 1);
+        if (destino != SPRITE_DRAW && destino != reinterpret_cast<unsigned int>(&Aro)) return false;
     }
     radar40Original = p40;
     return true;
@@ -1255,7 +1261,6 @@ static void AplicarFormaRadar(int forma) {
         if (*reinterpret_cast<const unsigned char*>(RADAR_RECORTE) == 0xE9) EscribirBytes(RADAR_RECORTE, recorteBytes, 5);
         if (*reinterpret_cast<const unsigned char*>(RADAR_LIMITE) == 0xE9) EscribirBytes(RADAR_LIMITE, limiteBytes, 5);
         if (*reinterpret_cast<const unsigned char*>(RADAR_MASCARA) == 0xC3) EscribirByte(RADAR_MASCARA, 0x55);
-        for (int i = 0; i < 4; i++) EscribirBytes(LLAMADAS_ARO[i] + 1, aroBytes[i], 4);
         if (norteAplicado) { EscribirBytes(LLAMADA_NORTE + 1, norteBytes, 4); norteAplicado = false; }
         radarAplicado = false;
         return;
@@ -1270,15 +1275,10 @@ static void AplicarFormaRadar(int forma) {
 
     // ---- Aplicar ----
     memcpy(recorteBytes, reinterpret_cast<const void*>(RADAR_RECORTE), 5);
-    for (int i = 0; i < 4; i++) memcpy(aroBytes[i], reinterpret_cast<const void*>(LLAMADAS_ARO[i] + 1), 4);
     EscribirPuntero(OPERANDO_40, reinterpret_cast<unsigned int>(&radarConstante40));
     EscribirSalto(RADAR_RECORTE, reinterpret_cast<const void*>(&RecorteRectangular));
     EscribirSalto(RADAR_LIMITE, reinterpret_cast<const void*>(&LimiteRectangular));
     EscribirByte(RADAR_MASCARA, 0xC3);
-    for (unsigned int llamada : LLAMADAS_ARO) {
-        int rel = reinterpret_cast<int>(&SinAro) - static_cast<int>(llamada + 5);
-        EscribirBytes(llamada + 1, reinterpret_cast<const unsigned char*>(&rel), 4);
-    }
     // ---- La "N": solo si la llamada es la esperada (E8 -> LimitRadarPoint) ----
     const unsigned char* n = reinterpret_cast<const unsigned char*>(LLAMADA_NORTE);
     if (SePuedeLeer(LLAMADA_NORTE, 5) && n[0] == 0xE8 &&
@@ -1303,7 +1303,7 @@ static void DibujarMarcoRadar() {
     float arriba    = SCREEN_HEIGHT - 104.0f * sy;
     float abajo     = SCREEN_HEIGHT - 28.0f * sy;
     float g = 2.0f * sy;                                // grosor del marco
-    CRGBA negro(0, 0, 0, 255);
+    CRGBA negro(0, 0, 0, Alfa(E_RADAR, 255));
     CSprite2d::DrawRect(CRect(izquierda - g, arriba - g, derecha + g, arriba), negro);
     CSprite2d::DrawRect(CRect(izquierda - g, abajo, derecha + g, abajo + g), negro);
     CSprite2d::DrawRect(CRect(izquierda - g, arriba, izquierda, abajo), negro);
@@ -1366,7 +1366,6 @@ static void __cdecl BarraConAlfa(float x, float y, unsigned short ancho, unsigne
 }
 
 // ---- Icono de arma: CSprite2d::Draw es thiscall; __fastcall con un argumento falso (EDX) equivale ----
-typedef void (__thiscall *DrawRect_t)(CSprite2d*, const CRect&, const CRGBA&);
 typedef void (__thiscall *DrawXY_t)(CSprite2d*, float, float, float, float, const CRGBA&);
 static void __fastcall IconoRect(CSprite2d* sprite, void*, const CRect& r, const CRGBA& c) {
     CRGBA k = c; k.a = Alfa(E_ARMA, c.a);
@@ -1389,6 +1388,52 @@ static void __cdecl IconoVertices(const CRect& r, const CRGBA& c1, const CRGBA& 
     reinterpret_cast<Vertices_t>(0x727420)(r, k1, k2, k3, k4);
 }
 
+// ---- Radar: solo en el radar del HUD (el mapa del menú usa las mismas funciones) ----
+static unsigned char AlfaRadar(unsigned char a) { return DibujandoMapa() ? a : Alfa(E_RADAR, a); }
+
+// Secciones del mapa: el juego las dibuja sin mezcla de alfa; se activa si hace falta.
+typedef void (__cdecl *VerticesTex_t)(int, float*, float*, const CRGBA&);
+static void __cdecl RadarSeccion(int n, float* pos, float* tex, const CRGBA& c) {
+    CRGBA k = c; k.a = AlfaRadar(c.a);
+    if (k.a != 255) RwRenderStateSet(rwRENDERSTATEVERTEXALPHAENABLE, reinterpret_cast<void*>(TRUE));
+    reinterpret_cast<VerticesTex_t>(0x727890)(n, pos, tex, k);
+}
+typedef void (__cdecl *VerticesColores_t)(int, float*, CRGBA*);
+static void __cdecl RadarZona(int n, float* pos, CRGBA* colores) {
+    CRGBA k[32];
+    if (n > 32) n = 32;
+    for (int i = 0; i < n; i++) { k[i] = colores[i]; k[i].a = AlfaRadar(colores[i].a); }
+    reinterpret_cast<VerticesColores_t>(0x727920)(n, pos, k);
+}
+static void __fastcall RadarSprite(CSprite2d* sprite, void*, const CRect& r, const CRGBA& c) {
+    CRGBA k = c; k.a = AlfaRadar(c.a);
+    reinterpret_cast<DrawRect_t>(0x728350)(sprite, r, k);
+}
+typedef void (__thiscall *Draw4_t)(CSprite2d*, float, float, float, float, float, float, float, float, const CRGBA&);
+static void __fastcall RadarSpriteGirado(CSprite2d* sprite, void*, float x1, float y1, float x2, float y2,
+                                         float x3, float y3, float x4, float y4, const CRGBA& c) {
+    CRGBA k = c; k.a = AlfaRadar(c.a);
+    reinterpret_cast<Draw4_t>(0x728520)(sprite, x1, y1, x2, y2, x3, y3, x4, y4, k);
+}
+typedef void (__cdecl *Vertices4_t)(float, float, float, float, float, float, float, float,
+                                    const CRGBA&, const CRGBA&, const CRGBA&, const CRGBA&);
+static void __cdecl RadarVertices4(float x1, float y1, float x2, float y2, float x3, float y3, float x4, float y4,
+                                   const CRGBA& c1, const CRGBA& c2, const CRGBA& c3, const CRGBA& c4) {
+    CRGBA k1 = c1, k2 = c2, k3 = c3, k4 = c4;
+    k1.a = AlfaRadar(c1.a); k2.a = AlfaRadar(c2.a); k3.a = AlfaRadar(c3.a); k4.a = AlfaRadar(c4.a);
+    reinterpret_cast<Vertices4_t>(0x727590)(x1, y1, x2, y2, x3, y3, x4, y4, k1, k2, k3, k4);
+}
+typedef void (__cdecl *Rect_t)(const CRect&, const CRGBA&);
+static void __cdecl RadarRect(const CRect& r, const CRGBA& c) {
+    CRGBA k = c; k.a = AlfaRadar(c.a);
+    reinterpret_cast<Rect_t>(0x727B60)(r, k);
+}
+typedef void (__cdecl *Poligono_t)(float, float, float, float, float, float, float, float, const CRGBA&);
+static void __cdecl RadarPoligono(float x1, float y1, float x2, float y2, float x3, float y3, float x4, float y4, const CRGBA& c) {
+    CRGBA k = c; k.a = AlfaRadar(c.a);
+    reinterpret_cast<Poligono_t>(0x7285B0)(x1, y1, x2, y2, x3, y3, x4, y4, k);
+}
+
 struct BusquedaDesvio {
     const char* nombre;
     unsigned int inicio, fin;   // rango de la función del elemento
@@ -1400,8 +1445,9 @@ struct BusquedaDesvio {
 static BusquedaDesvio BUSQUEDAS_OPACIDAD[] = {
     { "hora: color",          0x58EAF0, 0x58EC80, 0x719430, reinterpret_cast<const void*>(&ColorTexto<E_HORA>), 0 },
     { "hora: contorno",       0x58EAF0, 0x58EC80, 0x719510, reinterpret_cast<const void*>(&ColorContorno<E_HORA>), 0 },
-    { "dinero: color",        0x58F500, 0x58F6A0, 0x719430, reinterpret_cast<const void*>(&ColorTexto<E_DINERO>), 0 },
-    { "dinero: contorno",     0x58F500, 0x58F6A0, 0x719510, reinterpret_cast<const void*>(&ColorContorno<E_DINERO>), 0 },
+    // Dinero: desde el texto anterior (la hora) hasta el PrintString del dinero (0x58F607); el inicio se calcula al instalar
+    { "dinero: color",        0x58EC80, 0x58F607, 0x719430, reinterpret_cast<const void*>(&ColorTexto<E_DINERO>), 0 },
+    { "dinero: contorno",     0x58EC80, 0x58F607, 0x719510, reinterpret_cast<const void*>(&ColorContorno<E_DINERO>), 0 },
     { "municion: color",      0x5893B0, 0x589650, 0x719430, reinterpret_cast<const void*>(&ColorTexto<E_ARMA>), 0 },
     { "municion: contorno",   0x5893B0, 0x589650, 0x719510, reinterpret_cast<const void*>(&ColorContorno<E_ARMA>), 0 },
     { "estrellas: color",     0x58D9A0, 0x58E020, 0x719430, reinterpret_cast<const void*>(&ColorTexto<E_ESTRELLAS>), 0 },
@@ -1413,9 +1459,24 @@ static BusquedaDesvio BUSQUEDAS_OPACIDAD[] = {
     { "salud: barra",         0x589270, 0x5893B0, 0x728640, reinterpret_cast<const void*>(&BarraConAlfa<E_SALUD>), 0 },
     { "blindaje: barra",      0x5890A0, 0x589190, 0x728640, reinterpret_cast<const void*>(&BarraConAlfa<E_BLINDAJE>), 0 },
     { "oxigeno: barra",       0x589190, 0x589270, 0x728640, reinterpret_cast<const void*>(&BarraConAlfa<E_OXIGENO>), 0 },
+    // Radar (rangos de función según el orden de direcciones de plugin-sdk, CRadar.cpp)
+    { "radar: aro 1",         0x58A823, 0x58A824, 0x728350, reinterpret_cast<const void*>(&Aro), 0 },
+    { "radar: aro 2",         0x58A8CD, 0x58A8CE, 0x728350, reinterpret_cast<const void*>(&Aro), 0 },
+    { "radar: aro 3",         0x58A977, 0x58A978, 0x728350, reinterpret_cast<const void*>(&Aro), 0 },
+    { "radar: aro 4",         0x58AA25, 0x58AA26, 0x728350, reinterpret_cast<const void*>(&Aro), 0 },
+    { "radar: mapa",          0x586110, 0x586520, 0x727890, reinterpret_cast<const void*>(&RadarSeccion), 0 },
+    { "radar: zonas",         0x5853D0, 0x585700, 0x727920, reinterpret_cast<const void*>(&RadarZona), 0 },
+    { "radar: zonas (tex)",   0x5853D0, 0x585700, 0x727890, reinterpret_cast<const void*>(&RadarSeccion), 0 },
+    { "radar: iconos",        0x585FF0, 0x586110, 0x728350, reinterpret_cast<const void*>(&RadarSprite), 0 },
+    { "radar: flecha (Draw)", 0x584850, 0x584960, 0x728520, reinterpret_cast<const void*>(&RadarSpriteGirado), 0 },
+    { "radar: flecha (vert)", 0x584850, 0x584960, 0x727590, reinterpret_cast<const void*>(&RadarVertices4), 0 },
+    { "radar: puntos (rect)", 0x583F40, 0x584480, 0x727B60, reinterpret_cast<const void*>(&RadarRect), 0 },
+    { "radar: puntos (pol)",  0x583F40, 0x584480, 0x7285B0, reinterpret_cast<const void*>(&RadarPoligono), 0 },
 };
 
-struct Desvio { unsigned int sitio; unsigned char original[4]; };
+static const unsigned int FONT_PRINT = 0x71A700;   // CFont::PrintString(float, float, const char*)
+
+struct Desvio { unsigned int sitio; unsigned char original[4]; const char* nombre; };
 static Desvio desvios[128];
 static int numDesvios = 0;
 static bool opacidadInstalada = false;
@@ -1426,12 +1487,20 @@ static void InstalarOpacidad() {
     for (BusquedaDesvio& b : BUSQUEDAS_OPACIDAD) {
         b.encontrados = 0;
         if (!SePuedeLeer(b.inicio, b.fin - b.inicio + 5)) continue;
-        for (unsigned int dir = b.inicio; dir < b.fin && numDesvios < 128; dir++) {
+        unsigned int desde = b.inicio;
+        if (b.fin == 0x58F607) {                       // dinero: tras el último PrintString anterior
+            for (unsigned int dir = b.inicio; dir < b.fin; dir++) {
+                const unsigned char* c = reinterpret_cast<const unsigned char*>(dir);
+                if (c[0] == 0xE8 && dir + 5 + *reinterpret_cast<const int*>(c + 1) == FONT_PRINT) desde = dir + 5;
+            }
+        }
+        for (unsigned int dir = desde; dir < b.fin && numDesvios < 128; dir++) {
             const unsigned char* c = reinterpret_cast<const unsigned char*>(dir);
             if (c[0] != 0xE8) continue;
             if (dir + 5 + *reinterpret_cast<const int*>(c + 1) != b.objetivo) continue;
             Desvio& d = desvios[numDesvios];
             d.sitio = dir;
+            d.nombre = b.nombre;
             memcpy(d.original, c + 1, 4);
             int rel = reinterpret_cast<int>(b.nuevo) - static_cast<int>(dir + 5);
             if (EscribirBytes(dir + 1, reinterpret_cast<const unsigned char*>(&rel), 4)) {
@@ -1455,6 +1524,8 @@ static void DiagnosticoOpacidad(FILE* f) {
     fprintf(f, "\nOpacidad: llamadas redirigidas (%s)\n\n", opacidadInstalada ? "instalada" : "sin instalar");
     for (const BusquedaDesvio& b : BUSQUEDAS_OPACIDAD)
         fprintf(f, "%-22s 0x%06X-0x%06X -> 0x%06X  encontradas: %d\n", b.nombre, b.inicio, b.fin, b.objetivo, b.encontrados);
+    fprintf(f, "\nSitios:\n");
+    for (int i = 0; i < numDesvios; i++) fprintf(f, "  0x%06X  %s\n", desvios[i].sitio, desvios[i].nombre);
 }
 
 // =====================================================================
@@ -1536,6 +1607,7 @@ static const Opcion PAG_OPACIDAD[] = {
     { "Oxigeno",                    "OpacidadOxigeno",    OPC_PORCENTAJE, &cfg.opacidad[E_OXIGENO], 0, 100, 5, 1 },
     { "Resistencia",                "OpacidadResistencia",OPC_PORCENTAJE, &cfg.opacidad[E_RESISTENCIA], 0, 100, 5, 1 },
     { "Estrellas",                  "OpacidadEstrellas",  OPC_PORCENTAJE, &cfg.opacidad[E_ESTRELLAS], 0, 100, 5, 1 },
+    { "Radar",                      "OpacidadRadar",      OPC_PORCENTAJE, &cfg.opacidad[E_RADAR], 0, 100, 5, 1 },
 };
 
 struct Pagina { const char* titulo; const Opcion* opciones; int num; };
