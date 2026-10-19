@@ -40,7 +40,8 @@ Mientras una función está a medias, la versión lleva un sufijo con el número
 | `0.1.0-dev.22` | El menú F9 cabe en pantalla y se desplaza | ⏳ Sin probar |
 | `0.1.0` | HUD dinámico completo | ⏳ Tras las pruebas en misiones |
 | `0.2.0-dev.1` | Radar rectangular, paso 1: volcado del código del radar con F10 | ✅ Probado |
-| `0.2.0-dev.2` | Forma del radar en el menú F9: redondo, cuadrado, 3:2 y 16:9 | ⏳ Sin probar |
+| `0.2.0-dev.2` | Forma del radar en el menú F9: redondo, cuadrado, 3:2 y 16:9 | 🔁 Probado: la "N" sigue en círculo y el marco la tapa |
+| `0.2.0-dev.3` | Marco bajo los iconos; F10 identifica los mods que enganchan el radar | ⏳ Sin probar |
 | `0.2.0` | Forma del radar elegible en el menú F9 (redondo / rectangular) | ⏳ |
 | `1.0.0` | Primera release pública | ⏳ |
 

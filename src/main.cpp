@@ -1,6 +1,6 @@
 // #####################################################################
 //  Immersived HUD — plugin ASI para GTA San Andreas PC 1.0 US
-//  Versión: 0.2.0-dev.2 — forma del radar: redondo, cuadrado o rectangular (menú F9)
+//  Versión: 0.2.0-dev.3 — marco del radar bajo los iconos y diagnóstico de mods del radar
 //  Requiere: plugin-sdk (Plugin_SA) y un cargador de ASI.
 //  Repositorio: https://github.com/PulpoScript/gta-sa-immersived-hud
 // #####################################################################
@@ -57,7 +57,7 @@ using namespace plugin;
 // =====================================================================
 //  CONFIGURACIÓN
 // =====================================================================
-static const char* VERSION = "0.2.0-dev.2";
+static const char* VERSION = "0.2.0-dev.3";
 static const int   TECLA_ACTIVAR = VK_F11;
 static const int   TECLA_DIAGNOSTICO = VK_F10;
 static const int   TECLA_CONSULTA = VK_OEM_PERIOD;   // "." (no la del teclado numérico)
@@ -911,6 +911,37 @@ static bool EscribirDiagnostico() {
         fprintf(f, "\n");
     }
 
+    // ---- Radar: qué módulo tiene enganchadas sus funciones ----
+    fprintf(f, "\nRadar: modulos de los enganches\n\n");
+    {
+        struct Enganche { const char* nombre; unsigned int direccion; };
+        static const Enganche ENGANCHES[] = {
+            { "LimitRadarPoint (0x5832F0)", RADAR_LIMITE },
+            { "salto final de DrawRadar (0x58AA2D)", 0x58AA2D },
+        };
+        for (const Enganche& e : ENGANCHES) {
+            const unsigned char* c = reinterpret_cast<const unsigned char*>(e.direccion);
+            unsigned int destino = 0;
+            if (radarAplicado && e.direccion == RADAR_LIMITE) {
+                destino = reinterpret_cast<unsigned int>(limiteAnterior);   // el anterior a nuestro enganche
+            } else if (c[0] == 0xE9 || c[0] == 0xE8) {
+                destino = e.direccion + 5 + *reinterpret_cast<const int*>(c + 1);
+            }
+            char modulo[MAX_PATH] = "(ninguno)";
+            HMODULE h = nullptr;
+            if (destino && GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                                              reinterpret_cast<LPCSTR>(destino), &h) && h) {
+                GetModuleFileNameA(h, modulo, MAX_PATH);
+            }
+            fprintf(f, "%-38s byte %02X -> 0x%08X  %s\n", e.nombre, c[0], destino, modulo);
+            if (destino && SePuedeLeer(destino, 32)) {
+                fprintf(f, "  primeros bytes del destino:");
+                for (int i = 0; i < 32; i++) fprintf(f, " %02X", reinterpret_cast<const unsigned char*>(destino)[i]);
+                fprintf(f, "\n");
+            }
+        }
+    }
+
     // ---- Volcados en hexadecimal (radar) ----
     for (const Rango& r : VOLCADOS) {
         fprintf(f, "\nVolcado 0x%06X-0x%06X (%s)\n\n", r.inicio, r.fin, r.nombre);
@@ -1128,8 +1159,15 @@ static float __cdecl LimiteRectangular(CVector2D& p) {
     return magnitud;
 }
 
-// ---- Sustituto vacío de CSprite2d::Draw (thiscall con 2 argumentos) ----
-static void __fastcall SinAro(void*, void*, const void*, const void*) {}
+static void DibujarMarcoRadar();
+
+// ---- Sustituto de CSprite2d::Draw para el aro (thiscall con 2 argumentos) ----
+// En lugar del cuarto de aro, dibuja el marco rectangular. Ocurre dentro de
+// CHud::DrawRadar, antes de los iconos, así que el marco queda debajo de
+// ellos (como el aro original). Las 4 llamadas dibujan el mismo marco.
+static void __fastcall SinAro(void*, void*, const void*, const void*) {
+    DibujarMarcoRadar();
+}
 
 static void EscribirSalto(unsigned int desde, const void* hasta) {
     unsigned char salto[5];
@@ -1218,9 +1256,7 @@ static void AplicarFormaRadar(int forma) {
 
 // ---- Marco del radar rectangular (mismas cuentas que TransformRadarPointToScreenSpace) ----
 static void DibujarMarcoRadar() {
-    bool dibujado = radarDibujado;
-    radarDibujado = false;
-    if (!radarAplicado || !dibujado) return;
+    if (!radarAplicado) return;
 
     float ex, ey;
     if (!LeerEscala(OPERANDO_ESCALA_X, ex) || !LeerEscala(OPERANDO_ESCALA_Y, ey)) return;
@@ -1606,7 +1642,6 @@ public:
         Events::drawHudEvent.after += [] {
             QuitarBordes();
             DevolverIndicadores();
-            DibujarMarcoRadar();
             DibujarDiferencia();
             DibujarResistencia(CTimer::m_snTimeInMilliseconds);
             DibujarMenu();

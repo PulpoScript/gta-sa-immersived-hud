@@ -4,7 +4,15 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). A
 
 ## [Sin publicar]
 
-### 0.2.0-dev.2 — Forma del radar en el menú F9 (sin probar)
+### 0.2.0-dev.3 — Marco bajo los iconos y diagnóstico de mods del radar (sin probar)
+
+- El marco del radar rectangular se dibuja en lugar del aro (dentro de `CHud::DrawRadar`, antes de los iconos): ya no tapa la "N" ni los demás iconos.
+- F10 indica qué módulo (DLL / ASI) tiene enganchados `LimitRadarPoint` y el salto final de `CHud::DrawRadar` (que en este juego va a otra DLL en vez de a `CRadar::DrawBlips`), con los primeros bytes de su código.
+
+### 0.2.0-dev.2 — Forma del radar en el menú F9 (probado)
+
+- ✅ Cuadrado, 3:2 y 16:9 se ven bien.
+- ❌ La "N" sigue moviéndose en círculo y el marco la tapaba. Probable causa: otro mod dibuja los iconos (`DrawRadar` termina con `jmp 0x6EE8C442`, fuera del ejecutable) y coloca la "N" sin pasar por `LimitRadarPoint`.
 
 - Nueva opción **"Forma del radar"** en el menú F9: Redondo (por defecto, sin cambios), Cuadrado, Rectangular 3:2 y Rectangular 16:9. Se puede cambiar en pleno juego; F11 apagado vuelve al redondo de fábrica.
 - El rectángulo se ensancha hacia la derecha con el mismo zoom: el mapa no se deforma y se ve más terreno a los lados. Marco negro propio, sin aro redondo.
