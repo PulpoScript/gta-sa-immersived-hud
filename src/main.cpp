@@ -1,6 +1,6 @@
 // #####################################################################
 //  Immersived HUD — plugin ASI para GTA San Andreas PC 1.0 US
-//  Versión: 0.1.0-dev.13 — borde de las barras más fino y estrellas más pequeñas
+//  Versión: 0.1.0-dev.14 — oxígeno abajo a la derecha
 //  Requiere: plugin-sdk (Plugin_SA) y un cargador de ASI.
 //  Repositorio: https://github.com/PulpoScript/gta-sa-immersived-hud
 // #####################################################################
@@ -35,7 +35,7 @@ using namespace plugin;
 // =====================================================================
 //  CONFIGURACIÓN
 // =====================================================================
-static const char* VERSION = "0.1.0-dev.13";
+static const char* VERSION = "0.1.0-dev.14";
 static const int   TECLA_ACTIVAR = VK_F11;
 static const int   TECLA_DIAGNOSTICO = VK_F10;
 
@@ -183,6 +183,8 @@ static Coordenada MONTAJE[] = {
     { 0x58DDFC, 0x00866C5C,  72.0f, false },  // encendidas (fld)
     { 0x58DEF5, 0x00866C5C,  72.0f, false },  // apagadas
     { 0x58DFB3, 0x00866C5C,  72.0f, false },  // otra pasada con la misma Y
+    // ---- Oxígeno: abajo a la derecha (fábrica X 94 = borde izquierdo, compartido con Blindaje X; largo 62) ----
+    { 0x58F11F, 0x00866B78,  67.0f, false },  // borde derecho a 5 unidades del borde de la pantalla
     // ---- Estrellas: un 12 % más pequeñas (fábrica alto 1,21, ancho 0,605; tres pasadas) ----
     { 0x58DCAA, 0x00866C64, 1.065f, false },
     { 0x58DCC0, 0x00866C60, 0.532f, false },
@@ -375,16 +377,46 @@ static void QuitarBordes() {
     }
 }
 
+// =====================================================================
+//  OXÍGENO Y (SIN VERIFICAR)
+//  En salud y blindaje el puntero de la Y va 6 bytes después del de la
+//  escala Y de WidescreenFix (0x58EE62 → 0x58EE68, 0x58EF34 → 0x58EF3A).
+//  La escala Y del oxígeno está en 0x58F0FA (WidescreenFix: 0x58F0F8),
+//  así que la Y debería estar en 0x58F100. Solo se redirige si ahí hay
+//  un fmul [mem] (D8 0D) que lee un float entre 0 y 448.
+// =====================================================================
+static const unsigned int OXIGENO_Y_DIR = 0x58F100;
+static const float OXIGENO_Y_PROPIA = 547.0f;  // abajo del todo (1080p: ~1050 px)
+
+static Coordenada oxigenoY = { OXIGENO_Y_DIR, 0, OXIGENO_Y_PROPIA, false };
+static float oxigenoYFabrica = -1.0f;   // valor leído (para el log)
+
+// Comprueba la instrucción y rellena el puntero de fábrica. Devuelve true si es válida.
+static bool ComprobarOxigenoY() {
+    if (!SePuedeLeer(OXIGENO_Y_DIR - 2, 6)) return false;
+    const unsigned char* op = reinterpret_cast<const unsigned char*>(OXIGENO_Y_DIR - 2);
+    if (op[0] != 0xD8 || op[1] != 0x0D) return false;
+    unsigned int puntero = *reinterpret_cast<const unsigned int*>(OXIGENO_Y_DIR);
+    if (!SePuedeLeer(puntero, 4)) return false;
+    float valor = *reinterpret_cast<const float*>(puntero);
+    oxigenoYFabrica = valor;
+    if (!(valor > 0.0f && valor < 448.0f)) return false;
+    oxigenoY.original = puntero;
+    return true;
+}
+
 static bool montajeActivo = false;  // F11 encendido
 
 static void AplicarMontaje() {
     for (Coordenada& c : MONTAJE) Redirigir(c);
+    if (!oxigenoY.redirigida && ComprobarOxigenoY()) Redirigir(oxigenoY);
     AplicarContornos();
     AplicarTamanos();
 }
 
 static void QuitarMontaje() {
     for (Coordenada& c : MONTAJE) Restaurar(c);
+    Restaurar(oxigenoY);
     QuitarContornos();
     QuitarTamanos();
 }
@@ -461,6 +493,17 @@ static bool EscribirDiagnostico() {
             float valor = *reinterpret_cast<const float*>(puntero);
             fprintf(f, "0x%06X  %s -> 0x%08X = %.6f\n", dir + 2, nombre, puntero, valor);
         }
+    }
+
+    // ---- Oxígeno Y ----
+    fprintf(f, "\nOxigeno Y (0x%06X)\n\n", OXIGENO_Y_DIR);
+    if (oxigenoY.redirigida) {
+        fprintf(f, "cambiado a %.1f (fabrica %.1f, puntero 0x%08X)\n", oxigenoY.valor, oxigenoYFabrica, oxigenoY.original);
+    } else {
+        bool valida = ComprobarOxigenoY();
+        const unsigned char* op = reinterpret_cast<const unsigned char*>(OXIGENO_Y_DIR - 2);
+        fprintf(f, "bytes %02X %02X  valor %.3f  %s\n", op[0], op[1], oxigenoYFabrica,
+                valida ? "valida" : "NO valida (no se toca)");
     }
 
     // ---- Tamaño de las barras ----

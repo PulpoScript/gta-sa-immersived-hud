@@ -4,7 +4,15 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). A
 
 ## [Sin publicar]
 
-### 0.1.0-dev.13 — Borde de las barras más fino y estrellas más pequeñas (sin probar)
+### 0.1.0-dev.14 — Oxígeno abajo a la derecha (sin probar)
+
+- Oxígeno X (`0x58F11F`) a 67: borde derecho a 5 unidades del borde de la pantalla, como en el primer boceto.
+- Oxígeno Y: candidata `0x58F100` (sin verificar, deducida del patrón de salud y blindaje). Solo se redirige si es `fmul [mem]` con un valor entre 0 y 448. F10 muestra el resultado.
+
+### 0.1.0-dev.13 — Borde de las barras más fino y estrellas más pequeñas (probado)
+
+- ✅ El autor da por buenos el borde y el tamaño de las estrellas.
+- La barra de oxígeno se queda en su sitio de fábrica, solapada con el icono.
 
 - Borde negro de las barras al 70 %: se redirige la escala de las 4 instrucciones del borde de `DrawBarChart` (`0x728866`, `0x7288AB`, `0x7288F7`, `0x728943`) solo mientras se dibuja el HUD (`drawHudEvent`), porque la función también dibuja otras barras.
 - Estrellas al 88 % (1,21 / 0,605 → 1,065 / 0,532 en sus tres pasadas).
