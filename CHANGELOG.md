@@ -4,6 +4,14 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). A
 
 ## [Sin publicar]
 
+### 0.2.0-dev.7 — Opacidad del HUD y menú F9 con subpáginas (sin probar)
+
+- **Opacidad** (F9 > Opacidad): modo **Global** (un % para todo el HUD) o **Por elemento** (hora, dinero, arma y munición, salud, blindaje, oxígeno, resistencia y estrellas). En modo Global las opciones por elemento se ven en gris y no se pueden elegir. Pasos de 5 %; se guarda en `ImmersivedHud.ini`.
+- Funcionamiento: dentro de la función de cada elemento, las llamadas `E8` a `CFont::SetColor` (`0x719430`), `CFont::SetDropColor` (`0x719510`), `CSprite2d::Draw` (`0x728350`, `0x7283B0`, `0x7282C0`), `CSprite2d::SetVertices` (`0x727420`) y `CSprite2d::DrawBarChart` (`0x728640`) se redirigen a funciones propias que multiplican el alfa y llaman a la original. Solo se cambia una llamada si apunta a la función esperada; F11 lo deshace. La diferencia de dinero usa la opacidad del dinero.
+- F10 lista cuántas llamadas se redirigieron por elemento.
+- El radar no tiene opacidad todavía (su mapa usa un color fijo interno).
+- **Menú F9 con subpáginas**: General, Elementos (modo), Tiempos, Radar y Opacidad. Intro entra, Retroceso o "< Volver" regresa. Las claves del `.ini` no cambian.
+
 ### 0.2.0-dev.6 — Iconos de corto alcance en todo el rectángulo (sin probar)
 
 - Los iconos de corto alcance (tiendas, bares...) desaparecían dentro del rectángulo pero fuera del círculo de radio 1: el juego solo los dibuja si la distancia que devuelve `LimitRadarPoint` es ≤ 1 (gta-reversed). En el rectángulo, la función devuelve ahora la distancia rectangular (≤ 1 = dentro del rectángulo).

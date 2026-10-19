@@ -41,7 +41,7 @@ Necesitas Visual Studio con el compilador **MSVC v143** y [plugin-sdk](https://g
 | . (punto) | Toque corto: la hora 5 s. Mantener 0,8 s: todo el HUD visible con la nueva distribución; al soltar, se oculta a los 3 s |
 | F11 | Apaga / enciende el plugin (empieza encendido). Apagado: HUD de fábrica |
 | F10 | Guarda `ImmersivedHud.log` (diagnóstico, solo lectura) |
-| F9 | Menú de depuración (temporal): modo y tiempo de cada elemento y motivos del radar. Se guarda en `ImmersivedHud.ini` |
+| F9 | Menú de depuración (temporal) con subpáginas: modo y tiempo de cada elemento, radar (forma y motivos) y opacidad (global o por elemento). Se guarda en `ImmersivedHud.ini` |
 
 ## Compatibilidad
 
@@ -50,7 +50,7 @@ Necesitas Visual Studio con el compilador **MSVC v143** y [plugin-sdk](https://g
 ## Créditos
 
 - [plugin-sdk](https://github.com/DK22Pac/plugin-sdk) (DK22Pac y colaboradores): clases y direcciones del juego.
-- [gta-reversed](https://github.com/gta-reversed/gta-reversed): posiciones de fábrica del HUD y funciones `CHud::Draw`, `DrawBarChart` y `GetYPosBasedOnHealth`.
+- [gta-reversed](https://github.com/gta-reversed/gta-reversed): posiciones de fábrica del HUD y funciones `CHud::Draw`, `DrawBarChart` y `GetYPosBasedOnHealth`, y rangos de las funciones de cada elemento (opacidad).
 - [ReSA](https://github.com/pedrokilo/ReSA) (pedrokilo): desensamblado de `CHud::DrawPlayerInfo` y `CHud::DrawWanted` (1.0 US), con el desplazamiento por salud máxima de cada elemento.
 - [Widescreen Fix](https://github.com/ThirteenAG/WidescreenFixesPack) (ThirteenAG): técnica de redirigir el puntero de cada instrucción a un float propio.
 - Silent (GTAForums): truco de ocultar el dinero quitando la llamada a `CFont::PrintString`.

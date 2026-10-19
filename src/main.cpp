@@ -1,6 +1,6 @@
 // #####################################################################
 //  Immersived HUD — plugin ASI para GTA San Andreas PC 1.0 US
-//  Versión: 0.2.0-dev.6 — iconos de corto alcance en todo el rectángulo
+//  Versión: 0.2.0-dev.7 — opacidad del HUD y menú F9 con subpáginas
 //  Requiere: plugin-sdk (Plugin_SA) y un cargador de ASI.
 //  Repositorio: https://github.com/PulpoScript/gta-sa-immersived-hud
 // #####################################################################
@@ -57,7 +57,7 @@ using namespace plugin;
 // =====================================================================
 //  CONFIGURACIÓN
 // =====================================================================
-static const char* VERSION = "0.2.0-dev.6";
+static const char* VERSION = "0.2.0-dev.7";
 static const int   TECLA_ACTIVAR = VK_F11;
 static const int   TECLA_DIAGNOSTICO = VK_F10;
 static const int   TECLA_CONSULTA = VK_OEM_PERIOD;   // "." (no la del teclado numérico)
@@ -70,6 +70,7 @@ static const unsigned int PULSACION_LARGA = 800;   // ms para que "." muestre to
 // =====================================================================
 enum Modo { MODO_DINAMICO = 0, MODO_SIEMPRE = 1, MODO_NUNCA = 2 };
 enum FormaRadar { RADAR_REDONDO = 0, RADAR_CUADRADO = 1, RADAR_3_2 = 2, RADAR_16_9 = 3 };
+enum Elemento { E_HORA, E_DINERO, E_ARMA, E_SALUD, E_BLINDAJE, E_OXIGENO, E_RESISTENCIA, E_ESTRELLAS, NUM_ELEMENTOS };
 
 struct Ajustes {
     int montaje;            // 1 = montaje compacto, 0 = posiciones de fábrica
@@ -81,6 +82,9 @@ struct Ajustes {
     int modoResistencia, msResistencia;   // barra de resistencia
     int bloquearCJ;         // 1 = CJ no se mueve con el menú F9 abierto
     int formaRadar;         // FormaRadar
+    int opacidadModo;       // 0 = global, 1 = por elemento
+    int opacidadGlobal;     // %
+    int opacidad[8];        // % por elemento (Elemento)
 };
 
 static const Ajustes AJUSTES_FABRICA = {
@@ -92,6 +96,8 @@ static const Ajustes AJUSTES_FABRICA = {
     MODO_DINAMICO, 3000,
     1,
     0,
+    0, 100,
+    { 100, 100, 100, 100, 100, 100, 100, 100 },
 };
 
 static Ajustes cfg = AJUSTES_FABRICA;
@@ -773,6 +779,17 @@ static void DetectarEventos(CPed* ped, unsigned int ahora) {
 //  DIAGNÓSTICO
 // =====================================================================
 static void DiagnosticoRadar(FILE* f);   // definida en FORMA DEL RADAR
+static void DiagnosticoOpacidad(FILE* f);   // definida en OPACIDAD DEL HUD
+
+// Opacidad de cada elemento (menú F9 > Opacidad). Apagado (F11) = 100 %.
+static int PorcentajeOpacidad(int elemento) {
+    if (!activoGlobal) return 100;
+    return cfg.opacidadModo == 0 ? cfg.opacidadGlobal : cfg.opacidad[elemento];
+}
+
+static unsigned char Alfa(int elemento, unsigned char a) {
+    return static_cast<unsigned char>(a * PorcentajeOpacidad(elemento) / 100);
+}
 static const unsigned int RADAR_LIMITE_PUBLICO = 0x5832F0;   // CRadar::LimitRadarPoint
 
 // Escribe el archivo junto a gta_sa.exe. Devuelve true si se pudo.
@@ -910,6 +927,9 @@ static bool EscribirDiagnostico() {
         fprintf(f, "\n");
     }
 
+    // ---- Opacidad: llamadas redirigidas por elemento ----
+    DiagnosticoOpacidad(f);
+
     // ---- Radar: qué módulo tiene enganchadas sus funciones ----
     DiagnosticoRadar(f);
 
@@ -988,8 +1008,10 @@ static void DibujarDiferencia() {
     CFont::SetRightJustifyWrap(0.0f);
     CFont::SetDropShadowPosition(0);
     CFont::SetEdge(1);
-    CFont::SetDropColor(CRGBA(0, 0, 0, 255));
-    CFont::SetColor(HudColour.GetRGBA(diferenciaDinero > 0 ? HUD_COLOUR_GREEN : HUD_COLOUR_RED));
+    CFont::SetDropColor(CRGBA(0, 0, 0, Alfa(E_DINERO, 255)));
+    CRGBA colorDif = HudColour.GetRGBA(diferenciaDinero > 0 ? HUD_COLOUR_GREEN : HUD_COLOUR_RED);
+    colorDif.a = Alfa(E_DINERO, colorDif.a);
+    CFont::SetColor(colorDif);
     CFont::PrintString(SCREEN_WIDTH - sx * diferenciaX, sy * diferenciaY, texto);
     CFont::SetEdge(0);
 }
@@ -1050,7 +1072,7 @@ static void DibujarResistencia(unsigned int ahora) {
                             static_cast<unsigned short>(sx * BARRA_LARGO),
                             static_cast<unsigned char>(sy * BARRA_ALTO),
                             resistencia * 100.0f, 0, false, true,
-                            CRGBA(225, 190, 60, 255), CRGBA(0, 0, 0, 0));
+                            CRGBA(225, 190, 60, Alfa(E_RESISTENCIA, 255)), CRGBA(0, 0, 0, 0));
     QuitarBordes();
 }
 
@@ -1321,12 +1343,129 @@ static void DiagnosticoRadar(FILE* f) {
 }
 
 // =====================================================================
-//  MENÚ DE DEPURACIÓN (F9) — temporal, se quitará en la versión final
-//  Cada opción apunta a un campo de 'cfg'. Los cambios se guardan al
-//  momento en ImmersivedHud.ini (junto a gta_sa.exe) y se cargan al
-//  arrancar. Texto sin acentos: la fuente del juego no los tiene.
+//  OPACIDAD DEL HUD
+//  Cada elemento se dibuja dentro de su propia función del juego. Las
+//  llamadas de dibujo que hay dentro de cada función (CFont::SetColor /
+//  SetDropColor para el texto, CSprite2d::Draw para el icono,
+//  CSprite2d::DrawBarChart para las barras) se redirigen a funciones
+//  propias que multiplican el alfa y llaman a la original. Solo se cambia
+//  una llamada si es E8 hacia la función esperada; F11 lo deshace.
+//  Rangos de función: gta-reversed (Hud.cpp) y ReSA (DrawPlayerInfo).
+//  El radar no está incluido (su mapa usa un color fijo interno).
 // =====================================================================
-enum TipoOpcion { OPC_SINO, OPC_MODO, OPC_SEGUNDOS, OPC_PUNTOS, OPC_FORMA, OPC_ACCION, OPC_TITULO };
+template <int E> static void __cdecl ColorTexto(CRGBA c)    { c.a = Alfa(E, c.a); CFont::SetColor(c); }
+template <int E> static void __cdecl ColorContorno(CRGBA c) { c.a = Alfa(E, c.a); CFont::SetDropColor(c); }
+
+template <int E>
+static void __cdecl BarraConAlfa(float x, float y, unsigned short ancho, unsigned char alto, float progreso,
+                                 signed char suma, unsigned char porcentaje, unsigned char borde,
+                                 CRGBA color, CRGBA colorSuma) {
+    color.a = Alfa(E, color.a);
+    colorSuma.a = Alfa(E, colorSuma.a);
+    CSprite2d::DrawBarChart(x, y, ancho, alto, progreso, suma, porcentaje, borde, color, colorSuma);
+}
+
+// ---- Icono de arma: CSprite2d::Draw es thiscall; __fastcall con un argumento falso (EDX) equivale ----
+typedef void (__thiscall *DrawRect_t)(CSprite2d*, const CRect&, const CRGBA&);
+typedef void (__thiscall *DrawXY_t)(CSprite2d*, float, float, float, float, const CRGBA&);
+static void __fastcall IconoRect(CSprite2d* sprite, void*, const CRect& r, const CRGBA& c) {
+    CRGBA k = c; k.a = Alfa(E_ARMA, c.a);
+    reinterpret_cast<DrawRect_t>(0x728350)(sprite, r, k);
+}
+static void __fastcall IconoRect2(CSprite2d* sprite, void*, const CRect& r, const CRGBA& c) {
+    CRGBA k = c; k.a = Alfa(E_ARMA, c.a);
+    reinterpret_cast<DrawRect_t>(0x7283B0)(sprite, r, k);
+}
+static void __fastcall IconoXY(CSprite2d* sprite, void*, float x, float y, float w, float h, const CRGBA& c) {
+    CRGBA k = c; k.a = Alfa(E_ARMA, c.a);
+    reinterpret_cast<DrawXY_t>(0x7282C0)(sprite, x, y, w, h, k);
+}
+
+// Icono de arma con textura del modelo: se pinta con SetVertices + RwIm2DRenderPrimitive.
+typedef void (__cdecl *Vertices_t)(const CRect&, const CRGBA&, const CRGBA&, const CRGBA&, const CRGBA&);
+static void __cdecl IconoVertices(const CRect& r, const CRGBA& c1, const CRGBA& c2, const CRGBA& c3, const CRGBA& c4) {
+    CRGBA k1 = c1, k2 = c2, k3 = c3, k4 = c4;
+    k1.a = Alfa(E_ARMA, c1.a); k2.a = Alfa(E_ARMA, c2.a); k3.a = Alfa(E_ARMA, c3.a); k4.a = Alfa(E_ARMA, c4.a);
+    reinterpret_cast<Vertices_t>(0x727420)(r, k1, k2, k3, k4);
+}
+
+struct BusquedaDesvio {
+    const char* nombre;
+    unsigned int inicio, fin;   // rango de la función del elemento
+    unsigned int objetivo;      // función original llamada con E8
+    const void* nuevo;          // función propia
+    int encontrados;
+};
+
+static BusquedaDesvio BUSQUEDAS_OPACIDAD[] = {
+    { "hora: color",          0x58EAF0, 0x58EC80, 0x719430, reinterpret_cast<const void*>(&ColorTexto<E_HORA>), 0 },
+    { "hora: contorno",       0x58EAF0, 0x58EC80, 0x719510, reinterpret_cast<const void*>(&ColorContorno<E_HORA>), 0 },
+    { "dinero: color",        0x58F500, 0x58F6A0, 0x719430, reinterpret_cast<const void*>(&ColorTexto<E_DINERO>), 0 },
+    { "dinero: contorno",     0x58F500, 0x58F6A0, 0x719510, reinterpret_cast<const void*>(&ColorContorno<E_DINERO>), 0 },
+    { "municion: color",      0x5893B0, 0x589650, 0x719430, reinterpret_cast<const void*>(&ColorTexto<E_ARMA>), 0 },
+    { "municion: contorno",   0x5893B0, 0x589650, 0x719510, reinterpret_cast<const void*>(&ColorContorno<E_ARMA>), 0 },
+    { "estrellas: color",     0x58D9A0, 0x58E020, 0x719430, reinterpret_cast<const void*>(&ColorTexto<E_ESTRELLAS>), 0 },
+    { "estrellas: contorno",  0x58D9A0, 0x58E020, 0x719510, reinterpret_cast<const void*>(&ColorContorno<E_ESTRELLAS>), 0 },
+    { "icono: Draw (rect)",   0x58D7D0, 0x58D9A0, 0x728350, reinterpret_cast<const void*>(&IconoRect), 0 },
+    { "icono: Draw (rect2)", 0x58D7D0, 0x58D9A0, 0x7283B0, reinterpret_cast<const void*>(&IconoRect2), 0 },
+    { "icono: Draw (x, y)",   0x58D7D0, 0x58D9A0, 0x7282C0, reinterpret_cast<const void*>(&IconoXY), 0 },
+    { "icono: SetVertices",   0x58D7D0, 0x58D9A0, 0x727420, reinterpret_cast<const void*>(&IconoVertices), 0 },
+    { "salud: barra",         0x589270, 0x5893B0, 0x728640, reinterpret_cast<const void*>(&BarraConAlfa<E_SALUD>), 0 },
+    { "blindaje: barra",      0x5890A0, 0x589190, 0x728640, reinterpret_cast<const void*>(&BarraConAlfa<E_BLINDAJE>), 0 },
+    { "oxigeno: barra",       0x589190, 0x589270, 0x728640, reinterpret_cast<const void*>(&BarraConAlfa<E_OXIGENO>), 0 },
+};
+
+struct Desvio { unsigned int sitio; unsigned char original[4]; };
+static Desvio desvios[128];
+static int numDesvios = 0;
+static bool opacidadInstalada = false;
+
+static void InstalarOpacidad() {
+    if (opacidadInstalada) return;
+    numDesvios = 0;
+    for (BusquedaDesvio& b : BUSQUEDAS_OPACIDAD) {
+        b.encontrados = 0;
+        if (!SePuedeLeer(b.inicio, b.fin - b.inicio + 5)) continue;
+        for (unsigned int dir = b.inicio; dir < b.fin && numDesvios < 128; dir++) {
+            const unsigned char* c = reinterpret_cast<const unsigned char*>(dir);
+            if (c[0] != 0xE8) continue;
+            if (dir + 5 + *reinterpret_cast<const int*>(c + 1) != b.objetivo) continue;
+            Desvio& d = desvios[numDesvios];
+            d.sitio = dir;
+            memcpy(d.original, c + 1, 4);
+            int rel = reinterpret_cast<int>(b.nuevo) - static_cast<int>(dir + 5);
+            if (EscribirBytes(dir + 1, reinterpret_cast<const unsigned char*>(&rel), 4)) {
+                numDesvios++;
+                b.encontrados++;
+            }
+            dir += 4;
+        }
+    }
+    opacidadInstalada = true;
+}
+
+static void QuitarOpacidad() {
+    if (!opacidadInstalada) return;
+    for (int i = 0; i < numDesvios; i++) EscribirBytes(desvios[i].sitio + 1, desvios[i].original, 4);
+    numDesvios = 0;
+    opacidadInstalada = false;
+}
+
+static void DiagnosticoOpacidad(FILE* f) {
+    fprintf(f, "\nOpacidad: llamadas redirigidas (%s)\n\n", opacidadInstalada ? "instalada" : "sin instalar");
+    for (const BusquedaDesvio& b : BUSQUEDAS_OPACIDAD)
+        fprintf(f, "%-22s 0x%06X-0x%06X -> 0x%06X  encontradas: %d\n", b.nombre, b.inicio, b.fin, b.objetivo, b.encontrados);
+}
+
+// =====================================================================
+//  MENÚ DE DEPURACIÓN (F9) — temporal, se quitará en la versión final
+//  Página principal con subpáginas. Intro entra en una subpágina (o
+//  ejecuta "Restaurar"); Retroceso o "< Volver" regresa. Cada opción
+//  apunta a un campo de 'cfg'; se guarda al momento en ImmersivedHud.ini.
+//  Texto sin acentos: la fuente del juego no los tiene.
+// =====================================================================
+enum TipoOpcion { OPC_SINO, OPC_MODO, OPC_SEGUNDOS, OPC_PUNTOS, OPC_FORMA, OPC_PORCENTAJE, OPC_OPACIDAD_MODO,
+                  OPC_PAGINA, OPC_VOLVER, OPC_ACCION, OPC_TITULO };
 
 struct Opcion {
     const char* texto;
@@ -1334,44 +1473,91 @@ struct Opcion {
     TipoOpcion tipo;
     int* valor;
     int minimo, maximo, paso;
+    int extra;               // OPC_PAGINA: página destino; OPC_PORCENTAJE: 1 = por elemento
 };
 
-static const Opcion OPCIONES[] = {
-    { "GENERAL",                    nullptr,          OPC_TITULO,   nullptr, 0, 0, 0 },
-    { "Montaje compacto",           "Montaje",        OPC_SINO,     &cfg.montaje, 0, 1, 1 },
-    { "Diferencia de dinero",       "Diferencia",     OPC_SINO,     &cfg.diferencia, 0, 1, 1 },
-    { "CJ quieto con el menu",      "BloquearCJ",     OPC_SINO,     &cfg.bloquearCJ, 0, 1, 1 },
-    { "ELEMENTOS",                  nullptr,          OPC_TITULO,   nullptr, 0, 0, 0 },
-    { "Dinero",                     "ModoDinero",     OPC_MODO,     &cfg.modoDinero, 0, 2, 1 },
-    { "Arma y municion",            "ModoArma",       OPC_MODO,     &cfg.modoArma, 0, 2, 1 },
-    { "Salud y blindaje",           "ModoBarras",     OPC_MODO,     &cfg.modoBarras, 0, 2, 1 },
-    { "Hora",                       "ModoHora",       OPC_MODO,     &cfg.modoHora, 0, 2, 1 },
-    { "Radar",                      "ModoRadar",      OPC_MODO,     &cfg.modoRadar, 0, 2, 1 },
-    { "TIEMPOS",                    nullptr,          OPC_TITULO,   nullptr, 0, 0, 0 },
-    { "Dinero",                     "MsDinero",       OPC_SEGUNDOS, &cfg.msDinero, 500, 60000, 500 },
-    { "Arma y municion",            "MsArma",         OPC_SEGUNDOS, &cfg.msArma, 500, 60000, 500 },
-    { "Salud y blindaje",           "MsBarras",       OPC_SEGUNDOS, &cfg.msBarras, 500, 60000, 500 },
-    { "Hora (tecla .)",             "MsHora",         OPC_SEGUNDOS, &cfg.msHora, 500, 60000, 500 },
-    { "Radar tras el ultimo motivo","MsRadar",        OPC_SEGUNDOS, &cfg.msRadar, 0, 60000, 500 },
-    { "Todo (al soltar . / activar)","MsTodo",        OPC_SEGUNDOS, &cfg.msTodo, 500, 60000, 500 },
-    { "Barras fijas con salud <",   "SaludBaja",      OPC_PUNTOS,   &cfg.saludBaja, 0, 200, 5 },
-    { "Resistencia",                "ModoResistencia",OPC_MODO,     &cfg.modoResistencia, 0, 2, 1 },
-    { "Resistencia (al llenarse)",  "MsResistencia",  OPC_SEGUNDOS, &cfg.msResistencia, 0, 60000, 500 },
-    { "RADAR",                      nullptr,          OPC_TITULO,   nullptr, 0, 0, 0 },
-    { "Forma del radar",            "FormaRadar",     OPC_FORMA,    &cfg.formaRadar, 0, 3, 1 },
-    { "RADAR VISIBLE CON",          nullptr,          OPC_TITULO,   nullptr, 0, 0, 0 },
-    { "Vehiculo",                   "RadarVehiculo",  OPC_SINO,     &cfg.radarVehiculo, 0, 1, 1 },
-    { "Esprintar",                  "RadarEsprintar", OPC_SINO,     &cfg.radarEsprintar, 0, 1, 1 },
-    { "Estrellas",                  "RadarEstrellas", OPC_SINO,     &cfg.radarEstrellas, 0, 1, 1 },
-    { "Objetivo de mision",         "RadarObjetivo",  OPC_SINO,     &cfg.radarObjetivo, 0, 1, 1 },
-    { "Destino propio (mapa)",      "RadarDestino",   OPC_SINO,     &cfg.radarDestino, 0, 1, 1 },
-    { "",                           nullptr,          OPC_TITULO,   nullptr, 0, 0, 0 },
-    { "Restaurar valores por defecto", nullptr,       OPC_ACCION,   nullptr, 0, 0, 0 },
+#define VOLVER { "< Volver", nullptr, OPC_VOLVER, nullptr, 0, 0, 0, 0 }
+
+static const Opcion PAG_PRINCIPAL[] = {
+    { "General",                    nullptr, OPC_PAGINA, nullptr, 0, 0, 0, 1 },
+    { "Elementos (modo)",           nullptr, OPC_PAGINA, nullptr, 0, 0, 0, 2 },
+    { "Tiempos",                    nullptr, OPC_PAGINA, nullptr, 0, 0, 0, 3 },
+    { "Radar",                      nullptr, OPC_PAGINA, nullptr, 0, 0, 0, 4 },
+    { "Opacidad",                   nullptr, OPC_PAGINA, nullptr, 0, 0, 0, 5 },
+    { "",                           nullptr, OPC_TITULO, nullptr, 0, 0, 0, 0 },
+    { "Restaurar valores por defecto", nullptr, OPC_ACCION, nullptr, 0, 0, 0, 0 },
 };
-static const int NUM_OPCIONES = sizeof(OPCIONES) / sizeof(OPCIONES[0]);
+static const Opcion PAG_GENERAL[] = {
+    VOLVER,
+    { "Montaje compacto",           "Montaje",        OPC_SINO,     &cfg.montaje, 0, 1, 1, 0 },
+    { "Diferencia de dinero",       "Diferencia",     OPC_SINO,     &cfg.diferencia, 0, 1, 1, 0 },
+    { "CJ quieto con el menu",      "BloquearCJ",     OPC_SINO,     &cfg.bloquearCJ, 0, 1, 1, 0 },
+};
+static const Opcion PAG_ELEMENTOS[] = {
+    VOLVER,
+    { "Dinero",                     "ModoDinero",     OPC_MODO,     &cfg.modoDinero, 0, 2, 1, 0 },
+    { "Arma y municion",            "ModoArma",       OPC_MODO,     &cfg.modoArma, 0, 2, 1, 0 },
+    { "Salud y blindaje",           "ModoBarras",     OPC_MODO,     &cfg.modoBarras, 0, 2, 1, 0 },
+    { "Hora",                       "ModoHora",       OPC_MODO,     &cfg.modoHora, 0, 2, 1, 0 },
+    { "Radar",                      "ModoRadar",      OPC_MODO,     &cfg.modoRadar, 0, 2, 1, 0 },
+    { "Resistencia",                "ModoResistencia",OPC_MODO,     &cfg.modoResistencia, 0, 2, 1, 0 },
+};
+static const Opcion PAG_TIEMPOS[] = {
+    VOLVER,
+    { "Dinero",                     "MsDinero",       OPC_SEGUNDOS, &cfg.msDinero, 500, 60000, 500, 0 },
+    { "Arma y municion",            "MsArma",         OPC_SEGUNDOS, &cfg.msArma, 500, 60000, 500, 0 },
+    { "Salud y blindaje",           "MsBarras",       OPC_SEGUNDOS, &cfg.msBarras, 500, 60000, 500, 0 },
+    { "Hora (tecla .)",             "MsHora",         OPC_SEGUNDOS, &cfg.msHora, 500, 60000, 500, 0 },
+    { "Radar tras el ultimo motivo","MsRadar",        OPC_SEGUNDOS, &cfg.msRadar, 0, 60000, 500, 0 },
+    { "Resistencia (al llenarse)",  "MsResistencia",  OPC_SEGUNDOS, &cfg.msResistencia, 0, 60000, 500, 0 },
+    { "Todo (al soltar . / activar)","MsTodo",        OPC_SEGUNDOS, &cfg.msTodo, 500, 60000, 500, 0 },
+    { "Barras fijas con salud <",   "SaludBaja",      OPC_PUNTOS,   &cfg.saludBaja, 0, 200, 5, 0 },
+};
+static const Opcion PAG_RADAR[] = {
+    VOLVER,
+    { "Forma del radar",            "FormaRadar",     OPC_FORMA,    &cfg.formaRadar, 0, 3, 1, 0 },
+    { "VISIBLE CON",                nullptr,          OPC_TITULO,   nullptr, 0, 0, 0, 0 },
+    { "Vehiculo",                   "RadarVehiculo",  OPC_SINO,     &cfg.radarVehiculo, 0, 1, 1, 0 },
+    { "Esprintar",                  "RadarEsprintar", OPC_SINO,     &cfg.radarEsprintar, 0, 1, 1, 0 },
+    { "Estrellas",                  "RadarEstrellas", OPC_SINO,     &cfg.radarEstrellas, 0, 1, 1, 0 },
+    { "Objetivo de mision",         "RadarObjetivo",  OPC_SINO,     &cfg.radarObjetivo, 0, 1, 1, 0 },
+    { "Destino propio (mapa)",      "RadarDestino",   OPC_SINO,     &cfg.radarDestino, 0, 1, 1, 0 },
+};
+static const Opcion PAG_OPACIDAD[] = {
+    VOLVER,
+    { "Modo",                       "OpacidadModo",   OPC_OPACIDAD_MODO, &cfg.opacidadModo, 0, 1, 1, 0 },
+    { "Global (todo el HUD)",       "OpacidadGlobal", OPC_PORCENTAJE, &cfg.opacidadGlobal, 0, 100, 5, 0 },
+    { "POR ELEMENTO",               nullptr,          OPC_TITULO,   nullptr, 0, 0, 0, 0 },
+    { "Hora",                       "OpacidadHora",       OPC_PORCENTAJE, &cfg.opacidad[E_HORA], 0, 100, 5, 1 },
+    { "Dinero",                     "OpacidadDinero",     OPC_PORCENTAJE, &cfg.opacidad[E_DINERO], 0, 100, 5, 1 },
+    { "Arma y municion",            "OpacidadArma",       OPC_PORCENTAJE, &cfg.opacidad[E_ARMA], 0, 100, 5, 1 },
+    { "Salud",                      "OpacidadSalud",      OPC_PORCENTAJE, &cfg.opacidad[E_SALUD], 0, 100, 5, 1 },
+    { "Blindaje",                   "OpacidadBlindaje",   OPC_PORCENTAJE, &cfg.opacidad[E_BLINDAJE], 0, 100, 5, 1 },
+    { "Oxigeno",                    "OpacidadOxigeno",    OPC_PORCENTAJE, &cfg.opacidad[E_OXIGENO], 0, 100, 5, 1 },
+    { "Resistencia",                "OpacidadResistencia",OPC_PORCENTAJE, &cfg.opacidad[E_RESISTENCIA], 0, 100, 5, 1 },
+    { "Estrellas",                  "OpacidadEstrellas",  OPC_PORCENTAJE, &cfg.opacidad[E_ESTRELLAS], 0, 100, 5, 1 },
+};
+
+struct Pagina { const char* titulo; const Opcion* opciones; int num; };
+#define PAGINA(t, a) { t, a, static_cast<int>(sizeof(a) / sizeof(a[0])) }
+static const Pagina PAGINAS[] = {
+    PAGINA("Menu",                PAG_PRINCIPAL),
+    PAGINA("General",             PAG_GENERAL),
+    PAGINA("Elementos (modo)",    PAG_ELEMENTOS),
+    PAGINA("Tiempos",             PAG_TIEMPOS),
+    PAGINA("Radar",               PAG_RADAR),
+    PAGINA("Opacidad",            PAG_OPACIDAD),
+};
 
 static bool menuAbierto = false;
-static int menuSeleccion = 1;
+static int menuPagina = 0;
+static int menuSeleccion = 0;
+static int menuSeleccionPrincipal = 0;   // para volver al mismo sitio
+
+// Opción desactivada: las de opacidad por elemento cuando el modo es global.
+static bool Desactivada(const Opcion& o) {
+    return o.tipo == OPC_PORCENTAJE && o.extra == 1 && cfg.opacidadModo == 0;
+}
 
 static void RutaIni(char* ruta) {
     GetModuleFileNameA(NULL, ruta, MAX_PATH);
@@ -1383,38 +1569,42 @@ static void RutaIni(char* ruta) {
 static void CargarAjustes() {
     char ruta[MAX_PATH];
     RutaIni(ruta);
-    for (const Opcion& o : OPCIONES) {
-        if (!o.clave) continue;
-        int v = GetPrivateProfileIntA("Ajustes", o.clave, *o.valor, ruta);
-        if (v < o.minimo) v = o.minimo;
-        if (v > o.maximo) v = o.maximo;
-        *o.valor = v;
-    }
+    for (const Pagina& p : PAGINAS)
+        for (int i = 0; i < p.num; i++) {
+            const Opcion& o = p.opciones[i];
+            if (!o.clave) continue;
+            int v = GetPrivateProfileIntA("Ajustes", o.clave, *o.valor, ruta);
+            if (v < o.minimo) v = o.minimo;
+            if (v > o.maximo) v = o.maximo;
+            *o.valor = v;
+        }
 }
 
 static void GuardarAjustes() {
     char ruta[MAX_PATH], numero[16];
     RutaIni(ruta);
-    for (const Opcion& o : OPCIONES) {
-        if (!o.clave) continue;
-        sprintf(numero, "%d", *o.valor);
-        WritePrivateProfileStringA("Ajustes", o.clave, numero, ruta);
-    }
+    for (const Pagina& p : PAGINAS)
+        for (int i = 0; i < p.num; i++) {
+            const Opcion& o = p.opciones[i];
+            if (!o.clave) continue;
+            sprintf(numero, "%d", *o.valor);
+            WritePrivateProfileStringA("Ajustes", o.clave, numero, ruta);
+        }
 }
 
 static void TextoValor(const Opcion& o, char* texto) {
     static const char* MODOS[] = { "Dinamico", "Siempre", "Nunca" };
+    static const char* FORMAS[] = { "Redondo", "Cuadrado", "Rect. 3:2", "Rect. 16:9" };
     texto[0] = '\0';
     switch (o.tipo) {
-        case OPC_SINO:     strcpy(texto, *o.valor ? "Si" : "No"); break;
-        case OPC_MODO:     strcpy(texto, MODOS[*o.valor]); break;
-        case OPC_SEGUNDOS: sprintf(texto, "%.1f s", *o.valor / 1000.0f); break;
-        case OPC_PUNTOS:   sprintf(texto, "%d", *o.valor); break;
-        case OPC_FORMA: {
-            static const char* FORMAS[] = { "Redondo", "Cuadrado", "Rect. 3:2", "Rect. 16:9" };
-            strcpy(texto, FORMAS[*o.valor]);
-            break;
-        }
+        case OPC_SINO:          strcpy(texto, *o.valor ? "Si" : "No"); break;
+        case OPC_MODO:          strcpy(texto, MODOS[*o.valor]); break;
+        case OPC_SEGUNDOS:      sprintf(texto, "%.1f s", *o.valor / 1000.0f); break;
+        case OPC_PUNTOS:        sprintf(texto, "%d", *o.valor); break;
+        case OPC_FORMA:         strcpy(texto, FORMAS[*o.valor]); break;
+        case OPC_PORCENTAJE:    sprintf(texto, "%d %%", *o.valor); break;
+        case OPC_OPACIDAD_MODO: strcpy(texto, *o.valor ? "Por elemento" : "Global"); break;
+        case OPC_PAGINA:        strcpy(texto, ">"); break;
         default: break;
     }
 }
@@ -1428,10 +1618,18 @@ static bool Pulsada(int tecla, bool& antes) {
 }
 
 static void MoverSeleccion(int paso) {
-    for (int i = 0; i < NUM_OPCIONES; i++) {
-        menuSeleccion = (menuSeleccion + paso + NUM_OPCIONES) % NUM_OPCIONES;
-        if (OPCIONES[menuSeleccion].tipo != OPC_TITULO) return;
+    const Pagina& p = PAGINAS[menuPagina];
+    for (int i = 0; i < p.num; i++) {
+        menuSeleccion = (menuSeleccion + paso + p.num) % p.num;
+        const Opcion& o = p.opciones[menuSeleccion];
+        if (o.tipo != OPC_TITULO && !Desactivada(o)) return;
     }
+}
+
+static void IrAPagina(int pagina) {
+    if (menuPagina == 0) menuSeleccionPrincipal = menuSeleccion;
+    menuPagina = pagina;
+    menuSeleccion = (pagina == 0) ? menuSeleccionPrincipal : 0;
 }
 
 // ---- CJ quieto con el menú abierto ----
@@ -1449,57 +1647,61 @@ static void BloquearControles(bool bloquear) {
 }
 
 static void ProcesarMenu() {
-    static bool f9 = false, arriba = false, abajo = false, izq = false, der = false, intro = false;
-    if (Pulsada(TECLA_MENU, f9)) menuAbierto = !menuAbierto;
+    static bool f9 = false, arriba = false, abajo = false, izq = false, der = false, intro = false, atras = false;
+    if (Pulsada(TECLA_MENU, f9)) {
+        menuAbierto = !menuAbierto;
+        if (menuAbierto) { menuPagina = 0; menuSeleccion = menuSeleccionPrincipal; }
+    }
     BloquearControles(menuAbierto && cfg.bloquearCJ);
-    if (!menuAbierto) {
-        Pulsada(VK_UP, arriba); Pulsada(VK_DOWN, abajo);
-        Pulsada(VK_LEFT, izq); Pulsada(VK_RIGHT, der); Pulsada(VK_RETURN, intro);
-        return;
+    bool pArriba = Pulsada(VK_UP, arriba), pAbajo = Pulsada(VK_DOWN, abajo);
+    bool pIzq = Pulsada(VK_LEFT, izq), pDer = Pulsada(VK_RIGHT, der);
+    bool pIntro = Pulsada(VK_RETURN, intro), pAtras = Pulsada(VK_BACK, atras);
+    if (!menuAbierto) return;
+
+    if (pArriba) MoverSeleccion(-1);
+    if (pAbajo)  MoverSeleccion(+1);
+
+    const Opcion& o = PAGINAS[menuPagina].opciones[menuSeleccion];
+    if (pAtras && menuPagina != 0) { IrAPagina(0); return; }
+
+    if (pIntro) {
+        if (o.tipo == OPC_PAGINA) { IrAPagina(o.extra); return; }
+        if (o.tipo == OPC_VOLVER) { IrAPagina(0); return; }
+        if (o.tipo == OPC_ACCION) { cfg = AJUSTES_FABRICA; GuardarAjustes(); return; }
     }
 
-    if (Pulsada(VK_UP, arriba))   MoverSeleccion(-1);
-    if (Pulsada(VK_DOWN, abajo))  MoverSeleccion(+1);
-
-    const Opcion& o = OPCIONES[menuSeleccion];
-    int cambio = 0;
-    if (Pulsada(VK_LEFT, izq))  cambio = -1;
-    if (Pulsada(VK_RIGHT, der)) cambio = +1;
-    bool enter = Pulsada(VK_RETURN, intro);
-
-    if (o.tipo == OPC_ACCION && enter) {
-        cfg = AJUSTES_FABRICA;
-        GuardarAjustes();
-    } else if (cambio != 0 && o.valor) {
-        int v = *o.valor + cambio * o.paso;
-        if (o.tipo == OPC_SINO || o.tipo == OPC_MODO || o.tipo == OPC_FORMA) {
-            if (v < o.minimo) v = o.maximo;           // da la vuelta
-            if (v > o.maximo) v = o.minimo;
-        } else {
-            if (v < o.minimo) v = o.minimo;
-            if (v > o.maximo) v = o.maximo;
-        }
-        *o.valor = v;
-        GuardarAjustes();
+    int cambio = pIzq ? -1 : (pDer ? +1 : 0);
+    if (cambio == 0 || !o.valor || Desactivada(o)) return;
+    int v = *o.valor + cambio * o.paso;
+    if (o.tipo == OPC_SINO || o.tipo == OPC_MODO || o.tipo == OPC_FORMA || o.tipo == OPC_OPACIDAD_MODO) {
+        if (v < o.minimo) v = o.maximo;           // da la vuelta
+        if (v > o.maximo) v = o.minimo;
+    } else {
+        if (v < o.minimo) v = o.minimo;
+        if (v > o.maximo) v = o.maximo;
     }
+    *o.valor = v;
+    GuardarAjustes();
 }
 
 static void DibujarMenu() {
     if (!menuAbierto) return;
+    const Pagina& pag = PAGINAS[menuPagina];
     float esc = SCREEN_HEIGHT / 448.0f;                  // unidades de 640 × 448 (sin WidescreenFix)
     float x = 20.0f * esc, ancho = 230.0f * esc;
     float y = 75.0f * esc;                               // justo debajo del cuadro de ayuda
     float alto = 11.0f * esc;                            // alto de cada línea
 
     // ---- Cuántas líneas caben; si no caben todas, la lista se desplaza ----
-    static int primera = 0;                              // primera opción visible
+    static int primera = 0, paginaAntes = -1;
+    if (paginaAntes != menuPagina) { primera = 0; paginaAntes = menuPagina; }
     int caben = static_cast<int>((SCREEN_HEIGHT - y - 30.0f * esc) / alto);
     if (caben < 5) caben = 5;
-    if (caben > NUM_OPCIONES) caben = NUM_OPCIONES;
-    if (menuSeleccion < primera + 1) primera = menuSeleccion - 1;           // deja ver el título de arriba
+    if (caben > pag.num) caben = pag.num;
+    if (menuSeleccion < primera + 1) primera = menuSeleccion - 1;
     if (menuSeleccion > primera + caben - 1) primera = menuSeleccion - caben + 1;
     if (primera < 0) primera = 0;
-    if (primera > NUM_OPCIONES - caben) primera = NUM_OPCIONES - caben;
+    if (primera > pag.num - caben) primera = pag.num - caben;
 
     CSprite2d::DrawRect(CRect(x - 6.0f * esc, y - 24.0f * esc, x + ancho, y + alto * caben + 18.0f * esc),
                         CRGBA(0, 0, 0, 190));
@@ -1513,9 +1715,10 @@ static void DibujarMenu() {
     CFont::SetWrapx(SCREEN_WIDTH);
     CFont::SetRightJustifyWrap(0.0f);
 
-    // ---- Título ----
-    char titulo[64];
-    sprintf(titulo, "Immersived HUD %s - F9 cerrar", VERSION);
+    // ---- Título: versión y página ----
+    char titulo[96];
+    if (menuPagina == 0) sprintf(titulo, "Immersived HUD %s - F9 cerrar", VERSION);
+    else                 sprintf(titulo, "Immersived HUD - %s", pag.titulo);
     CFont::SetScale(0.30f * esc, 0.75f * esc);
     CFont::SetOrientation(ALIGN_LEFT);
     CFont::SetColor(CRGBA(255, 200, 80, 255));
@@ -1524,10 +1727,11 @@ static void DibujarMenu() {
     CFont::SetScale(0.25f * esc, 0.60f * esc);
     for (int n = 0; n < caben; n++) {
         int i = primera + n;
-        const Opcion& o = OPCIONES[i];
+        const Opcion& o = pag.opciones[i];
         float fy = y + alto * n;
         bool sel = (i == menuSeleccion);
         CRGBA color = o.tipo == OPC_TITULO ? CRGBA(140, 170, 230, 255)
+                    : Desactivada(o) ? CRGBA(90, 90, 90, 255)
                     : sel ? CRGBA(255, 255, 255, 255) : CRGBA(180, 180, 180, 255);
         CFont::SetColor(color);
         CFont::SetOrientation(ALIGN_LEFT);
@@ -1544,9 +1748,10 @@ static void DibujarMenu() {
     }
 
     // ---- Pie: ayuda y aviso de que hay más opciones arriba o abajo ----
-    char pie[96];
-    sprintf(pie, "Flechas: elegir / cambiar   Intro: restaurar%s%s",
-            primera > 0 ? "   (mas arriba)" : "", primera + caben < NUM_OPCIONES ? "   (mas abajo)" : "");
+    char pie[128];
+    sprintf(pie, "%s%s%s",
+            menuPagina == 0 ? "Flechas: elegir   Intro: entrar" : "Flechas: elegir / cambiar   Retroceso: volver",
+            primera > 0 ? "   (mas arriba)" : "", primera + caben < pag.num ? "   (mas abajo)" : "");
     CFont::SetOrientation(ALIGN_LEFT);
     CFont::SetColor(CRGBA(150, 150, 150, 255));
     CFont::PrintString(x, y + alto * caben + 4.0f * esc, pie);
@@ -1634,6 +1839,10 @@ public:
 
             // ---- Forma del radar (menú F9); apagado = redondo de fábrica ----
             AplicarFormaRadar(activo ? cfg.formaRadar : RADAR_REDONDO);
+
+            // ---- Opacidad (menú F9); apagado = sin desvíos ----
+            if (activo) InstalarOpacidad();
+            else        QuitarOpacidad();
 
             if (!activo) {
                 puntoAntes = puntoLargo = false;
