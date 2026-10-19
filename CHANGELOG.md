@@ -4,6 +4,11 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). A
 
 ## [Sin publicar]
 
+### 0.1.0-dev.21 — CJ quieto con el menú abierto (sin probar)
+
+- Nueva opción del menú F9, **"CJ quieto con el menu"** (activada por defecto): mientras el menú está abierto, CJ no responde a los controles, así que las flechas solo mueven el menú.
+- Técnica: bit propio (`0x8000`) en `CPad::DisablePlayerControls` (plugin-sdk, `CPad + 0x10E`), el indicador con el que el juego ignora los controles del jugador. Se pone y se quita sin tocar los valores de las misiones.
+
 ### 0.1.0-dev.20 — Barra de resistencia (sin probar)
 
 - Nueva barra de **resistencia** (lo que CJ puede esprintar antes de cansarse), abajo a la derecha, donde el oxígeno, con el mismo tamaño y borde fino. Color dorado. Si el oxígeno también se ve, la resistencia va justo encima.

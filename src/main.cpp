@@ -1,6 +1,6 @@
 // #####################################################################
 //  Immersived HUD — plugin ASI para GTA San Andreas PC 1.0 US
-//  Versión: 0.1.0-dev.20 — barra de resistencia
+//  Versión: 0.1.0-dev.21 — CJ quieto con el menú F9 abierto
 //  Requiere: plugin-sdk (Plugin_SA) y un cargador de ASI.
 //  Repositorio: https://github.com/PulpoScript/gta-sa-immersived-hud
 // #####################################################################
@@ -56,7 +56,7 @@ using namespace plugin;
 // =====================================================================
 //  CONFIGURACIÓN
 // =====================================================================
-static const char* VERSION = "0.1.0-dev.20";
+static const char* VERSION = "0.1.0-dev.21";
 static const int   TECLA_ACTIVAR = VK_F11;
 static const int   TECLA_DIAGNOSTICO = VK_F10;
 static const int   TECLA_CONSULTA = VK_OEM_PERIOD;   // "." (no la del teclado numérico)
@@ -77,6 +77,7 @@ struct Ajustes {
     int saludBaja;          // puntos: por debajo, barras fijas
     int radarVehiculo, radarEsprintar, radarEstrellas, radarObjetivo, radarDestino;
     int modoResistencia, msResistencia;   // barra de resistencia
+    int bloquearCJ;         // 1 = CJ no se mueve con el menú F9 abierto
 };
 
 static const Ajustes AJUSTES_FABRICA = {
@@ -86,6 +87,7 @@ static const Ajustes AJUSTES_FABRICA = {
     25,
     1, 1, 1, 1, 1,
     MODO_DINAMICO, 3000,
+    1,
 };
 
 static Ajustes cfg = AJUSTES_FABRICA;
@@ -1045,6 +1047,7 @@ static const Opcion OPCIONES[] = {
     { "GENERAL",                    nullptr,          OPC_TITULO,   nullptr, 0, 0, 0 },
     { "Montaje compacto",           "Montaje",        OPC_SINO,     &cfg.montaje, 0, 1, 1 },
     { "Diferencia de dinero",       "Diferencia",     OPC_SINO,     &cfg.diferencia, 0, 1, 1 },
+    { "CJ quieto con el menu",      "BloquearCJ",     OPC_SINO,     &cfg.bloquearCJ, 0, 1, 1 },
     { "ELEMENTOS",                  nullptr,          OPC_TITULO,   nullptr, 0, 0, 0 },
     { "Dinero",                     "ModoDinero",     OPC_MODO,     &cfg.modoDinero, 0, 2, 1 },
     { "Arma y municion",            "ModoArma",       OPC_MODO,     &cfg.modoArma, 0, 2, 1 },
@@ -1131,9 +1134,24 @@ static void MoverSeleccion(int paso) {
     }
 }
 
+// ---- CJ quieto con el menú abierto ----
+// CPad::DisablePlayerControls (plugin-sdk, CPad + 0x10E): si no es 0, el
+// juego ignora los controles del jugador (gta-reversed, Pad.cpp). Las
+// misiones lo usan con sus propios valores; el plugin solo añade y quita
+// un bit alto propio, y lo reafirma cada frame (una carga lo pone a 0).
+static const unsigned short BIT_MENU = 0x8000;
+
+static void BloquearControles(bool bloquear) {
+    CPad* pad = CPad::GetPad(0);
+    if (!pad) return;
+    if (bloquear) pad->DisablePlayerControls |= BIT_MENU;
+    else          pad->DisablePlayerControls &= static_cast<unsigned short>(~BIT_MENU);
+}
+
 static void ProcesarMenu() {
     static bool f9 = false, arriba = false, abajo = false, izq = false, der = false, intro = false;
     if (Pulsada(TECLA_MENU, f9)) menuAbierto = !menuAbierto;
+    BloquearControles(menuAbierto && cfg.bloquearCJ);
     if (!menuAbierto) {
         Pulsada(VK_UP, arriba); Pulsada(VK_DOWN, abajo);
         Pulsada(VK_LEFT, izq); Pulsada(VK_RIGHT, der); Pulsada(VK_RETURN, intro);
