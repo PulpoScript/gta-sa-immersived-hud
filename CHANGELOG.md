@@ -4,6 +4,12 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). A
 
 ## [Sin publicar]
 
+### 0.2.0-dev.1 — Radar rectangular, paso 1: volcado (sin probar)
+
+- F10 vuelca en hexadecimal el código de `CRadar::LimitRadarPoint`, `TransformRadarPointToScreenSpace`, `ClipRadarPoly`, el inicio de `DrawRadarMask` y `CHud::DrawRadar`, para desensamblarlo y localizar las constantes y llamadas exactas antes de escribir nada. Solo lectura; el radar no cambia.
+- Plan (investigado en gta-reversed): el mapa de cada sección se transforma dentro de `DrawRadarSection` sin llamar a una función sustituible, así que el rectángulo se hará con el mismo zoom en ambos ejes, más mapa a los lados y un recorte rectangular (`ClipRadarPoly`). `TransformRadarPointToScreenSpace` no puede sustituirse (quien la llama espera `EDX` intacto): solo se redirigirán sus constantes. El aro son 4 llamadas `thiscall` a `CSprite2d::Draw`: se redirigirán a una función vacía compatible.
+- Se elegirá en el menú F9 ("Forma del radar"), con Redondo por defecto.
+
 ### 0.1.0-dev.22 — El menú F9 cabe en pantalla (sin probar)
 
 - El menú empieza más arriba (justo debajo del cuadro de ayuda) y, si no caben todas las opciones, la lista se desplaza con la selección. El pie indica si hay más opciones arriba o abajo.

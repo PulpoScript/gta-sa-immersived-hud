@@ -1,6 +1,6 @@
 // #####################################################################
 //  Immersived HUD — plugin ASI para GTA San Andreas PC 1.0 US
-//  Versión: 0.1.0-dev.22 — el menú F9 cabe en pantalla
+//  Versión: 0.2.0-dev.1 — radar rectangular, paso 1: volcado del código del radar (F10)
 //  Requiere: plugin-sdk (Plugin_SA) y un cargador de ASI.
 //  Repositorio: https://github.com/PulpoScript/gta-sa-immersived-hud
 // #####################################################################
@@ -56,7 +56,7 @@ using namespace plugin;
 // =====================================================================
 //  CONFIGURACIÓN
 // =====================================================================
-static const char* VERSION = "0.1.0-dev.22";
+static const char* VERSION = "0.2.0-dev.1";
 static const int   TECLA_ACTIVAR = VK_F11;
 static const int   TECLA_DIAGNOSTICO = VK_F10;
 static const int   TECLA_CONSULTA = VK_OEM_PERIOD;   // "." (no la del teclado numérico)
@@ -148,9 +148,14 @@ static const Rango BUSQUEDAS[] = {
     { "DrawBarChart",      0x728640, 0x728900 },  // CSprite2d::DrawBarChart: borde negro de las barras
 };
 
-// ---- Rango a volcar en hexadecimal: CSprite2d::DrawBarChart ----
-static const unsigned int VOLCADO_INICIO = 0x728640;
-static const unsigned int VOLCADO_FIN    = 0x728A40;
+// ---- Rangos a volcar en hexadecimal (para desensamblar fuera de la sesión) ----
+static const Rango VOLCADOS[] = {
+    { "CRadar::LimitRadarPoint",                  0x5832F0, 0x583350 },
+    { "CRadar::TransformRadarPointToScreenSpace", 0x583480, 0x583530 },
+    { "CRadar::ClipRadarPoly",                    0x585040, 0x5853D0 },
+    { "CRadar::DrawRadarMask (inicio)",           0x585700, 0x585720 },
+    { "CHud::DrawRadar",                          0x58A330, 0x58AA50 },
+};
 
 // =====================================================================
 //  LECTURA SEGURA
@@ -902,17 +907,19 @@ static bool EscribirDiagnostico() {
         fprintf(f, "\n");
     }
 
-    // ---- Volcado de CSprite2d::DrawBarChart (para desensamblar fuera) ----
-    fprintf(f, "\nVolcado 0x%06X-0x%06X (DrawBarChart)\n\n", VOLCADO_INICIO, VOLCADO_FIN);
-    if (SePuedeLeer(VOLCADO_INICIO, VOLCADO_FIN - VOLCADO_INICIO)) {
-        for (unsigned int dir = VOLCADO_INICIO; dir < VOLCADO_FIN; dir += 16) {
+    // ---- Volcados en hexadecimal (radar) ----
+    for (const Rango& r : VOLCADOS) {
+        fprintf(f, "\nVolcado 0x%06X-0x%06X (%s)\n\n", r.inicio, r.fin, r.nombre);
+        if (!SePuedeLeer(r.inicio, r.fin - r.inicio)) {
+            fprintf(f, "no se puede leer el rango\n");
+            continue;
+        }
+        for (unsigned int dir = r.inicio; dir < r.fin; dir += 16) {
             const unsigned char* b = reinterpret_cast<const unsigned char*>(dir);
             fprintf(f, "%06X:", dir);
             for (int i = 0; i < 16; i++) fprintf(f, " %02X", b[i]);
             fprintf(f, "\n");
         }
-    } else {
-        fprintf(f, "no se puede leer el rango\n");
     }
 
     fclose(f);

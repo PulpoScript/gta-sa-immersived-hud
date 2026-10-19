@@ -39,7 +39,8 @@ Mientras una función está a medias, la versión lleva un sufijo con el número
 | `0.1.0-dev.21` | CJ quieto con el menú F9 abierto (opción por defecto) | ✅ Probado (el menú se salía de la pantalla) |
 | `0.1.0-dev.22` | El menú F9 cabe en pantalla y se desplaza | ⏳ Sin probar |
 | `0.1.0` | HUD dinámico completo | ⏳ Tras las pruebas en misiones |
-| `0.2.0` | Forma del radar: redondo, cuadrado y rectangular (investigado, sin empezar) | ⏳ |
+| `0.2.0-dev.1` | Radar rectangular, paso 1: volcado del código del radar con F10 | ⏳ Sin probar |
+| `0.2.0` | Forma del radar elegible en el menú F9 (redondo / rectangular) | ⏳ |
 | `1.0.0` | Primera release pública | ⏳ |
 
 El detalle de cada versión (direcciones, valores y resultados de las pruebas) está en el [CHANGELOG](../CHANGELOG.md).
