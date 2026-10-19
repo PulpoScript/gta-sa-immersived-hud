@@ -1,6 +1,6 @@
 // #####################################################################
 //  Immersived HUD — plugin ASI para GTA San Andreas PC 1.0 US
-//  Versión: 0.2.0-dev.4 — diagnóstico de la "N" del radar (F10)
+//  Versión: 0.2.0-dev.5 — la "N" del radar sigue el borde del rectángulo
 //  Requiere: plugin-sdk (Plugin_SA) y un cargador de ASI.
 //  Repositorio: https://github.com/PulpoScript/gta-sa-immersived-hud
 // #####################################################################
@@ -57,7 +57,7 @@ using namespace plugin;
 // =====================================================================
 //  CONFIGURACIÓN
 // =====================================================================
-static const char* VERSION = "0.2.0-dev.4";
+static const char* VERSION = "0.2.0-dev.5";
 static const int   TECLA_ACTIVAR = VK_F11;
 static const int   TECLA_DIAGNOSTICO = VK_F10;
 static const int   TECLA_CONSULTA = VK_OEM_PERIOD;   // "." (no la del teclado numérico)
@@ -1086,6 +1086,12 @@ static const unsigned int RADAR_MASCARA     = 0x585700;   // CRadar::DrawRadarMa
 static const unsigned int SPRITE_DRAW       = 0x728350;   // CSprite2d::Draw(CRect const&, CRGBA const&)
 static const unsigned int LLAMADAS_ARO[4]   = { 0x58A823, 0x58A8CD, 0x58A977, 0x58AA25 };
 static const unsigned int DIBUJANDO_MAPA    = 0xBA67A1;   // FrontEndMenuManager.m_bDrawRadarOrMap
+// La "N": DrawBlips la pone a √2 del centro y llama a LimitRadarPoint en
+// 0x588161 (volcado de dev.4) antes de DrawRadarSprite(4). En el redondo
+// siempre queda fuera del círculo y va al borde; en el rectángulo cabe
+// dentro, así que esa llamada se redirige a una función que la lleva
+// siempre al borde.
+static const unsigned int LLAMADA_NORTE     = 0x588161;
 
 static float radarAncho = 1.0f;          // semiancho en unidades del radar (alto = 1)
 static float radarConstante40 = 40.0f;   // valor propio para el operando 0x5834D4
@@ -1095,7 +1101,8 @@ static bool radarDibujado = false;       // el mapa del radar se dibujó en este
 
 typedef float (__cdecl *FuncLimite)(CVector2D&);
 static FuncLimite limiteAnterior = nullptr;      // la del otro mod o un trampolín a la original
-static unsigned char limiteBytes[5], recorteBytes[5], aroBytes[4][4];
+static unsigned char limiteBytes[5], recorteBytes[5], aroBytes[4][4], norteBytes[4];
+static bool norteAplicado = false;
 static unsigned char* trampolin = nullptr;
 
 static bool DibujandoMapa() { return *reinterpret_cast<const unsigned char*>(DIBUJANDO_MAPA) != 0; }
@@ -1145,6 +1152,16 @@ static float __cdecl LimiteRectangular(CVector2D& p) {
 }
 
 static void DibujarMarcoRadar();
+
+// ---- La "N": siempre en el borde del rectángulo ----
+static float __cdecl LimiteNorte(CVector2D& p) {
+    if (DibujandoMapa() || !radarAplicado) return limiteAnterior(p);
+    float magnitud = sqrtf(p.x * p.x + p.y * p.y);
+    float fx = fabsf(p.x) / radarAncho, fy = fabsf(p.y);
+    float f = fx > fy ? fx : fy;
+    if (f > 0.0f) { p.x /= f; p.y /= f; }
+    return magnitud;
+}
 
 // ---- Sustituto de CSprite2d::Draw para el aro (thiscall con 2 argumentos) ----
 // En lugar del cuarto de aro, dibuja el marco rectangular. Ocurre dentro de
@@ -1214,6 +1231,7 @@ static void AplicarFormaRadar(int forma) {
         if (*reinterpret_cast<const unsigned char*>(RADAR_LIMITE) == 0xE9) EscribirBytes(RADAR_LIMITE, limiteBytes, 5);
         if (*reinterpret_cast<const unsigned char*>(RADAR_MASCARA) == 0xC3) EscribirByte(RADAR_MASCARA, 0x55);
         for (int i = 0; i < 4; i++) EscribirBytes(LLAMADAS_ARO[i] + 1, aroBytes[i], 4);
+        if (norteAplicado) { EscribirBytes(LLAMADA_NORTE + 1, norteBytes, 4); norteAplicado = false; }
         radarAplicado = false;
         return;
     }
@@ -1235,6 +1253,14 @@ static void AplicarFormaRadar(int forma) {
     for (unsigned int llamada : LLAMADAS_ARO) {
         int rel = reinterpret_cast<int>(&SinAro) - static_cast<int>(llamada + 5);
         EscribirBytes(llamada + 1, reinterpret_cast<const unsigned char*>(&rel), 4);
+    }
+    // ---- La "N": solo si la llamada es la esperada (E8 -> LimitRadarPoint) ----
+    const unsigned char* n = reinterpret_cast<const unsigned char*>(LLAMADA_NORTE);
+    if (SePuedeLeer(LLAMADA_NORTE, 5) && n[0] == 0xE8 &&
+        LLAMADA_NORTE + 5 + *reinterpret_cast<const int*>(n + 1) == RADAR_LIMITE) {
+        memcpy(norteBytes, n + 1, 4);
+        int rel = reinterpret_cast<int>(&LimiteNorte) - static_cast<int>(LLAMADA_NORTE + 5);
+        norteAplicado = EscribirBytes(LLAMADA_NORTE + 1, reinterpret_cast<const unsigned char*>(&rel), 4);
     }
     radarAplicado = true;
 }

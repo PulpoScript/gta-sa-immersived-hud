@@ -4,7 +4,14 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). A
 
 ## [Sin publicar]
 
-### 0.2.0-dev.4 — Diagnóstico de la "N" del radar (sin probar)
+### 0.2.0-dev.5 — La "N" sigue el borde del rectángulo (sin probar)
+
+- La "N" se colocaba a √2 del centro: en el redondo siempre queda fuera del círculo y va al borde, pero en el rectángulo cabe dentro y giraba en un círculo. La llamada de `DrawBlips` a `LimitRadarPoint` para la "N" (`0x588161`) se redirige a una función que la lleva siempre al borde del rectángulo. Se comprueba que sea `E8` hacia `0x5832F0` antes de cambiarla y se deshace al volver a redondo.
+
+### 0.2.0-dev.4 — Diagnóstico de la "N" (probado)
+
+- `DrawBlips` sí llama a `LimitRadarPoint` para la "N" (`0x588161`), antes de `DrawRadarSprite(4)`. Hay 7 llamadas a `LimitRadarPoint` entre `0x580000` y `0x590000`: `0x585B96`, `0x586E97`, `0x587221`, `0x587604`, `0x58798F`, `0x588161` y `0x58820D`.
+- CLEO+ también engancha una llamada al principio de `DrawBlips` (`0x58810C`).
 
 - F10 vuelca el inicio de `CRadar::DrawBlips` (`0x588050`, donde se dibuja la "N") y lista todas las llamadas a `LimitRadarPoint` entre `0x580000` y `0x590000`, para saber qué iconos pasan por el recorte rectangular.
 
