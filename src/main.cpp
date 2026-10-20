@@ -1,6 +1,6 @@
 // #####################################################################
 //  Immersived HUD — plugin ASI para GTA San Andreas PC 1.0 US
-//  Versión: 0.2.0-dev.13 — opacidad del puño
+//  Versión: 0.2.0-dev.14 — activar o desactivar el log (F10) desde el .ini
 //  Requiere: plugin-sdk (Plugin_SA) y un cargador de ASI.
 //  Repositorio: https://github.com/PulpoScript/gta-sa-immersived-hud
 // #####################################################################
@@ -19,7 +19,7 @@
 //    F11  Apaga / enciende el plugin (empieza encendido). Apagado: HUD
 //         de fábrica.
 //    F10  Escribe ImmersivedHud.log junto a gta_sa.exe (diagnóstico,
-//         solo lectura).
+//         solo lectura). Se desactiva con Log=0 en ImmersivedHud.ini.
 //    F9   Menú de depuración (temporal, se quitará en la versión final):
 //         flechas arriba / abajo para elegir, izquierda / derecha para
 //         cambiar, Intro para "restaurar". Se guarda en ImmersivedHud.ini.
@@ -57,7 +57,7 @@ using namespace plugin;
 // =====================================================================
 //  CONFIGURACIÓN
 // =====================================================================
-static const char* VERSION = "0.2.0-dev.13";
+static const char* VERSION = "0.2.0-dev.14";
 static const int   TECLA_ACTIVAR = VK_F11;
 static const int   TECLA_DIAGNOSTICO = VK_F10;
 static const int   TECLA_CONSULTA = VK_OEM_PERIOD;   // "." (no la del teclado numérico)
@@ -85,6 +85,7 @@ struct Ajustes {
     int opacidadModo;       // 0 = global, 1 = por elemento
     int opacidadGlobal;     // %
     int opacidad[NUM_ELEMENTOS];   // % por elemento (Elemento)
+    int log;                // 1 = F10 escribe ImmersivedHud.log
 };
 
 static const Ajustes AJUSTES_FABRICA = {
@@ -98,6 +99,7 @@ static const Ajustes AJUSTES_FABRICA = {
     0,
     0, 100,
     { 100, 100, 100, 100, 100, 100, 100, 100, 100 },
+    1,
 };
 
 static Ajustes cfg = AJUSTES_FABRICA;
@@ -1579,6 +1581,7 @@ static const Opcion PAG_GENERAL[] = {
     { "Montaje compacto",           "Montaje",        OPC_SINO,     &cfg.montaje, 0, 1, 1, 0 },
     { "Diferencia de dinero",       "Diferencia",     OPC_SINO,     &cfg.diferencia, 0, 1, 1, 0 },
     { "CJ quieto con el menu",      "BloquearCJ",     OPC_SINO,     &cfg.bloquearCJ, 0, 1, 1, 0 },
+    { "Log de diagnostico (F10)",   "Log",            OPC_SINO,     &cfg.log, 0, 1, 1, 0 },
 };
 static const Opcion PAG_ELEMENTOS[] = {
     VOLVER,
@@ -1870,6 +1873,7 @@ class ImmersivedHud {
 public:
     ImmersivedHud() {
         CargarAjustes();
+        GuardarAjustes();   // escribe las claves que falten (p. ej. Log) para poder editarlas a mano
 
         // Se ejecuta una vez por frame mientras se juega.
         Events::gameProcessEvent += [] {
@@ -1913,9 +1917,17 @@ public:
             // ---- Tecla F10: diagnóstico (solo lectura) ----
             bool diagAhora = (GetAsyncKeyState(TECLA_DIAGNOSTICO) & 0x8000) != 0;
             if (diagAhora && !diagAntes) {
-                bool ok = EscribirDiagnostico();
-                sprintf(texto, ok ? "Diagnostico guardado en ImmersivedHud.log"
-                                  : "No se pudo escribir ImmersivedHud.log");
+                // Se lee del .ini en cada pulsación: así vale editar el archivo con el juego abierto
+                char ruta[MAX_PATH];
+                RutaIni(ruta);
+                cfg.log = GetPrivateProfileIntA("Ajustes", "Log", cfg.log, ruta) ? 1 : 0;
+                if (cfg.log) {
+                    bool ok = EscribirDiagnostico();
+                    sprintf(texto, ok ? "Diagnostico guardado en ImmersivedHud.log"
+                                      : "No se pudo escribir ImmersivedHud.log");
+                } else {
+                    sprintf(texto, "Log desactivado (Log=0 en ImmersivedHud.ini)");
+                }
                 CHud::SetHelpMessage(texto, true, false, false);
             }
             diagAntes = diagAhora;

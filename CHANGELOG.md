@@ -4,6 +4,11 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). A
 
 ## [Sin publicar]
 
+### 0.2.0-dev.14 — Activar o desactivar el log desde el .ini (sin probar)
+
+- Nueva clave `Log` en `ImmersivedHud.ini` (sección `[Ajustes]`): `1` = F10 escribe `ImmersivedHud.log` (por defecto), `0` = F10 no escribe nada y avisa de que está desactivado. Se lee del archivo en cada pulsación de F10, así que se puede cambiar con el juego abierto. También está en F9 > General.
+- Al arrancar se escriben en el `.ini` las claves que falten, para poder editarlas a mano.
+
 ### 0.2.0-dev.13 — Opacidad del puño (probado)
 
 - ✅ El puño y los iconos con textura cambian de opacidad.

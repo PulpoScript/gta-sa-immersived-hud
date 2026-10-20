@@ -52,6 +52,7 @@ Mientras una función está a medias, la versión lleva un sufijo con el número
 | `0.2.0-dev.11` | Volcado de `DrawWeaponIcon` con F10 | ✅ Probado |
 | `0.2.0-dev.12` | Opacidad de los iconos de arma con textura (alfa fijo de `RenderOneXLUSprite`) | 🔁 Probado: el puño no cambiaba |
 | `0.2.0-dev.13` | Opacidad del puño (llamada a `CSprite2d::Draw`) | ✅ Probado (puño e iconos con textura) |
+| `0.2.0-dev.14` | Activar o desactivar el log (F10) con `Log` en el `.ini` | ⏳ Sin probar |
 | `0.2.0` | Forma del radar elegible en el menú F9 (redondo / rectangular) | ⏳ |
 | `1.0.0` | Primera release pública | ⏳ |
 
