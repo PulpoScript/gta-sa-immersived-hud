@@ -4,6 +4,10 @@ Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/). A
 
 ## [Sin publicar]
 
+### 0.2.0-dev.15 — Con Log=0, F10 no hace nada (sin probar)
+
+- Con `Log=0`, F10 se ignora por completo: no escribe el log ni muestra ningún aviso (el aviso de dev.14 chocaba con otro mod que usa la misma tecla).
+
 ### 0.2.0-dev.14 — Activar o desactivar el log desde el .ini (sin probar)
 
 - Nueva clave `Log` en `ImmersivedHud.ini` (sección `[Ajustes]`): `1` = F10 escribe `ImmersivedHud.log` (por defecto), `0` = F10 no escribe nada y avisa de que está desactivado. Se lee del archivo en cada pulsación de F10, así que se puede cambiar con el juego abierto. También está en F9 > General.

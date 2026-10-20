@@ -1,6 +1,6 @@
 // #####################################################################
 //  Immersived HUD — plugin ASI para GTA San Andreas PC 1.0 US
-//  Versión: 0.2.0-dev.14 — activar o desactivar el log (F10) desde el .ini
+//  Versión: 0.2.0-dev.15 — con Log=0, F10 no hace nada (ni aviso)
 //  Requiere: plugin-sdk (Plugin_SA) y un cargador de ASI.
 //  Repositorio: https://github.com/PulpoScript/gta-sa-immersived-hud
 // #####################################################################
@@ -57,7 +57,7 @@ using namespace plugin;
 // =====================================================================
 //  CONFIGURACIÓN
 // =====================================================================
-static const char* VERSION = "0.2.0-dev.14";
+static const char* VERSION = "0.2.0-dev.15";
 static const int   TECLA_ACTIVAR = VK_F11;
 static const int   TECLA_DIAGNOSTICO = VK_F10;
 static const int   TECLA_CONSULTA = VK_OEM_PERIOD;   // "." (no la del teclado numérico)
@@ -1921,14 +1921,13 @@ public:
                 char ruta[MAX_PATH];
                 RutaIni(ruta);
                 cfg.log = GetPrivateProfileIntA("Ajustes", "Log", cfg.log, ruta) ? 1 : 0;
+                // Log=0: F10 se ignora por completo (sin aviso), para no chocar con otros mods que la usen
                 if (cfg.log) {
                     bool ok = EscribirDiagnostico();
                     sprintf(texto, ok ? "Diagnostico guardado en ImmersivedHud.log"
                                       : "No se pudo escribir ImmersivedHud.log");
-                } else {
-                    sprintf(texto, "Log desactivado (Log=0 en ImmersivedHud.ini)");
+                    CHud::SetHelpMessage(texto, true, false, false);
                 }
-                CHud::SetHelpMessage(texto, true, false, false);
             }
             diagAntes = diagAhora;
 
